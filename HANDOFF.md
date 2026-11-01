@@ -104,3 +104,10 @@ Ana menüde artık **üç mod kartı**: Simülasyon Modu · Detaylı Mod · **�
 - Mobil Ada HUD'u: durum çubuğu `width:max-content` + `flex-wrap` ile iki satıra sığar.
 - Doğrulama: `node build.mjs && node --check dist/game.mjs`; tarayıcıda menü, Ada Modu (3 kamera, ağaç kesme, dükkân, çanta/tezgâh/rehber/ev/pano, sohbet+hediye, uyku, kayıt/yükleme, gece ışıkları, mobil 375×812), Simülasyon ve Detaylı mod geçişleri konsol hatasız. Gömülü önizleme paneli gizliyken ~2 FPS çalışır; gerçek hız için gerçek tarayıcıda dene.
 - Henüz gerçek cihazda/odaklı pencerede ölçülmedi: Ada Modu FPS'i (ada 160×160, ~300–450 ağaç), izometrik görünümde evlerin kamerayı kapatması (Q/R ile dön), dokunmatik joystick hissi.
+
+## Yayın (GitHub)
+- Depo: https://github.com/suslu22/mini-dunya (herkese açık, dal: `main`). Oyun adresi: **https://suslu22.github.io/mini-dunya/**
+- `main`'e her push'ta `.github/workflows/pages.yml` çalışır: `node build.mjs` → `dist/` GitHub Pages'e yüklenir (~1 dk). `dist/` git'te yok (`.gitignore`), yerelde `node build.mjs` ile üretilir.
+- Güncelleme akışı: `src/…` düzenle → `node build.mjs` + testler → `git add -A && git commit -m "…" && git push`.
+- Commit kimliği (yalnız bu depo): `suslu22` + GitHub noreply e-postası; gerçek e-posta herkese açık geçmişe girmesin diye.
+- Bilgisayarda iki GitHub hesabı var (`suslu22` etkin, `idkalem`); `gh auth status` ile bak, yanlış hesapla push'lama.
