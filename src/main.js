@@ -1866,7 +1866,7 @@ function frame() {
     const steps = Math.ceil(sdt / 0.05);
     for (let i = 0; i < steps; i++) {
       world.update(sdt / steps);
-      if (det) colony.update(sdt / steps, tod * 24);
+      if (det) { colony.setEnv(CL.season, CL.weather, CL.temp); colony.update(sdt / steps, tod * 24); }
     }
     tod += (sdt / dayLen) * timeSpeed;
     if (tod >= 1) { tod -= 1; dayCount++; }

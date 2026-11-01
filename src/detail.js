@@ -29,6 +29,22 @@ export const D_FOOD = {
 };
 const FOOD_KEYS = Object.keys(D_FOOD);
 
+// Mevsim etkileri: ekin büyümesi, yemiş toplama, balık, kirlenme hızı, hasat çarpanı
+export const D_SEASON = [
+  { grow: 1.0, forage: 1.2, fish: 1.0, dirt: 1.0, harvest: 1.0 },    // ilkbahar
+  { grow: 1.3, forage: 1.4, fish: 1.15, dirt: 1.25, harvest: 1.0 },  // yaz
+  { grow: 0.7, forage: 1.5, fish: 1.0, dirt: 1.0, harvest: 1.25 },   // sonbahar
+  { grow: 0.2, forage: 0.3, fish: 0.75, dirt: 0.9, harvest: 1.0 },   // kış
+];
+// Köy çağı, beceri ağacındaki anahtar becerilerden çıkar
+export const D_ERAS = [
+  { n: 'Taş Çağı', i: '🪨', goal: 'Tarım becerisini aç' },
+  { n: 'Tarım Çağı', i: '🌾', goal: 'Demir Balta ve Sağlam Evler becerilerini aç' },
+  { n: 'Demir Çağı', i: '⚒️', goal: 'Fabrika becerisini aç' },
+  { n: 'Sanayi Çağı', i: '🏭', goal: 'Otomasyon ve Bilim becerilerini aç' },
+  { n: 'Modern Çağ', i: '🏙️', goal: '' },
+];
+
 export const D_BUILD = {
   house: { n: 'Ev', i: '🏠', w: 2, h: 2, wood: 8, gold: 0, tech: null, solid: 1, time: 14, d: 'Uyku ve barınma. 4 kişilik.' },
   fire: { n: 'Kamp Ateşi', i: '🔥', w: 1, h: 1, wood: 3, gold: 0, tech: null, solid: 0, time: 5, d: 'Eğlence ve sohbet yeri.' },
@@ -92,6 +108,7 @@ export class Colony {
     this.reset();
     this.onToast = () => {};
     this.onLevel = () => {};
+    this.onEra = () => {};
   }
   reset() {
     this.people = []; this.buildings = []; this.nextId = 1; this.time = 0; this.hour = 8; this.night = false;
@@ -99,6 +116,7 @@ export class Colony {
     this.tech = { koke: 1 }; this.pts = 2; this.xp = 0; this.lvl = 1;
     this.queue = []; this.evTimer = 55; this.log = []; this.claim = new Set(); this.bad = new Map(); this.occ.fill(-1);
     this.mood = 70; this.sellMul = 1;
+    this.season = 0; this.weather = 'clear'; this.temp = 15; this.envInit = false; this.fresh = -1; this.era = 0; this.heatT = 12; this.warm = true;
   }
   // Yeni dünya + tek bir başlangıç insanı. Başlangıç noktasını döndürür.
   start(seed) {
@@ -120,7 +138,7 @@ export class Colony {
   has(t) { return !!this.tech[t]; }
   getPerson(id) { return this.people.find((p) => p.id === id) || null; }
   getBuilding(id) { return this.buildings.find((b) => b.id === id) || null; }
-  addLog(t) { this.log.unshift({ t, time: this.time }); if (this.log.length > 40) this.log.pop(); }
+  addLog(t) { this.log.unshift({ t, time: this.time }); if (this.log.length > 60) this.log.pop(); }
   foodStock() { let s = 0; for (const k of FOOD_KEYS) s += this.res[k] * D_FOOD[k].v / 30; return s; }
 
   // ---------------------------------------------------------------- insanlar
@@ -286,7 +304,51 @@ export class Colony {
     const t = TECH_BY_ID[id]; this.pts -= t.cost; this.tech[id] = 1;
     if (id === 'ticaret') this.sellMul = 1.5;
     this.addLog('⭐ Beceri açıldı: ' + t.n);
+    this._checkEra();
     return true;
+  }
+  eraOf() {
+    if (this.has('sanayi3') && this.has('bilim')) return 4;
+    if (this.has('sanayi2')) return 3;
+    if (this.has('balta') && this.has('ev2')) return 2;
+    return this.has('tarim1') ? 1 : 0;
+  }
+  _checkEra() {
+    const e = this.eraOf();
+    if (e <= this.era) return;
+    this.era = e; this.pts += 1;
+    const E = D_ERAS[e];
+    this.addLog('🌟 Köy çağ atladı: ' + E.i + ' ' + E.n + ' (+1 beceri puanı)');
+    this.onEra(e);
+  }
+  // Ana döngüden her karede: dünya iklimi (CL) → koloni. İlk çağrı yalnızca durumu alır.
+  setEnv(season, weather, temp) {
+    this.weather = weather; this.temp = temp;
+    if (season === this.season && this.envInit) return;
+    const old = this.season; this.season = season;
+    if (!this.envInit) { this.envInit = true; return; }
+    this._seasonChanged(season, old);
+  }
+  _seasonChanged(s) {
+    const SN = ['🌸 İlkbahar başladı: ekim zamanı, bebekler çoğalır', '☀️ Yaz başladı: ekinler hızlı büyür, çabuk kirlenilir', '🍂 Sonbahar başladı: hasat zamanı, ürün +%25', '❄️ Kış başladı: ekinler durur, evler odunla ısınır'];
+    this.addLog(SN[s]);
+    this.fresh = s; this.evTimer = Math.min(this.evTimer, 8);
+    if (s === 3) {
+      let lost = 0;
+      for (const b of this.buildings) if (b.type === 'field' && b.prog >= 1 && b.stage === 1 && b.timer / b.total > 0.5) { b.stage = 0; b.timer = 0; lost++; }
+      if (lost) this.addLog('🥶 Don ' + lost + ' tarladaki körpe ekini vurdu');
+    }
+  }
+  // kışın evleri ısıtmak için odun yakılır
+  _seasonal(dt) {
+    if (this.season !== 3) { this.warm = true; return; }
+    this.heatT -= dt; if (this.heatT > 0) return;
+    this.heatT = 10;
+    const houses = this.buildings.filter((b) => b.type === 'house' && b.prog >= 1).length;
+    if (!houses) { this.warm = true; return; }
+    const need = houses * 0.2;
+    if (this.res.wood >= need) { this.res.wood -= need; if (!this.warm) this.addLog('🔥 Sobalar yeniden yandı'); this.warm = true; }
+    else { if (this.warm) this.addLog('🥶 Odun bitti, evler soğuk'); this.warm = false; }
   }
 
   // ---------------------------------------------------------------- hareket
@@ -399,7 +461,7 @@ export class Colony {
     const sites = this.buildings.filter((b) => b.prog < 1 && b.worker < 0);
     if (sites.length) o.build = { s: 5, f: () => this._startBuild(p, sites) };
     if (this.w.treeCount > 0) o.wood = { s: Math.max(0.5, 7 - res.wood / (3 + pop)), f: () => this._startChop(p) };
-    const fields = this.buildings.filter((b) => b.type === 'field' && b.prog >= 1 && b.worker < 0 && (b.stage === 0 || b.stage === 2));
+    const fields = this.buildings.filter((b) => b.type === 'field' && b.prog >= 1 && b.worker < 0 && (b.stage === 2 || (b.stage === 0 && this.season !== 3)));
     if (fields.length) o.farm = { s: 2 + wantFood * 0.5 + (fields.some((b) => b.stage === 2) ? 3 : 0), f: () => this._startFarm(p, fields) };
     const pens = this.buildings.filter((b) => b.type === 'pen' && b.prog >= 1 && b.worker < 0 && b.prod >= 1.2);
     if (pens.length) o.herd = { s: 3 + wantFood * 0.3, f: () => this._startHerd(p, pens) };
@@ -769,12 +831,12 @@ export class Colony {
         }
         break;
       }
-      case 'forage': res.berry += 1.5 + levelOf(p.skill.farm) * 0.3; this.gainSkill(p, 'farm', 1.5); w.fx('puff', p.x, p.y + 0.3, p.z, 1); break;
+      case 'forage': res.berry += (1.5 + levelOf(p.skill.farm) * 0.3) * D_SEASON[this.season].forage; this.gainSkill(p, 'farm', 1.5); w.fx('puff', p.x, p.y + 0.3, p.z, 1); break;
       case 'farm': {
         const b = this.getBuilding(a.b); if (!b) break;
         if (a.mode === 'sow') { b.stage = 1; b.timer = 42 * (this.has('tohum') ? 0.75 : 1) * (this.has('sulama') ? 0.85 : 1); b.total = b.timer; this.gainSkill(p, 'farm', 2); }
         else if (b.stage === 2) {
-          const y = 6.5 * this.skillMul(p, 'farm') * (this.has('sulama') ? 1.4 : 1) * (this.has('tohum') ? 1.3 : 1);
+          const y = 6.5 * this.skillMul(p, 'farm') * (this.has('sulama') ? 1.4 : 1) * (this.has('tohum') ? 1.3 : 1) * D_SEASON[this.season].harvest;
           res.wheat += y; b.stage = 0; this.gainSkill(p, 'farm', 6);
           for (let i = 0; i < 4; i++) w.fx('puff', b.x + (drnd() - 0.5) * 2, b.y + 0.4, b.z + (drnd() - 0.5) * 2, 1);
         }
@@ -792,7 +854,7 @@ export class Colony {
       }
       case 'fish': {
         const dock = a.dock ? 1 : 0.65;
-        const y = (1 + (this.has('balik2') ? 0.6 : 0) + (this.has('balik3') && a.dock ? 1.0 : 0)) * dock * (0.7 + levelOf(p.skill.fish) * 0.12 + p.stats.agi * 0.03) * this.eff(p);
+        const y = (1 + (this.has('balik2') ? 0.6 : 0) + (this.has('balik3') && a.dock ? 1.0 : 0)) * dock * (0.7 + levelOf(p.skill.fish) * 0.12 + p.stats.agi * 0.03) * this.eff(p) * D_SEASON[this.season].fish;
         res.fish += y; this.gainSkill(p, 'fish', 4);
         w.fx('splash', p.x + (a.dock ? 0 : 1.2), SEA, p.z + 1.2, 1);
         break;
@@ -833,7 +895,10 @@ export class Colony {
     // binalar
     for (const b of this.buildings) {
       if (b.prog < 1) continue;
-      if (b.type === 'field' && b.stage === 1) { b.timer -= dt; if (b.timer <= 0) b.stage = 2; }
+      if (b.type === 'field' && b.stage === 1) {
+        b.timer -= dt * D_SEASON[this.season].grow * (this.weather === 'rain' || this.weather === 'storm' ? 1.25 : 1);
+        if (b.timer <= 0) b.stage = 2;
+      }
       if (b.type === 'pen') {
         const fed = this.res.wheat >= 1 || this.res.berry >= 1 ? 1 : 0.5;
         const rate = (b.kind === 'chicken' ? 0.035 : b.kind === 'cow' ? 0.024 : 0.028) * (this.has('yem') ? 1.4 : 1) * fed;
@@ -850,6 +915,7 @@ export class Colony {
         if ((b.type === 'factory' || b.type === 'workshop') && drnd() < dt * 2.5) this.w.fx('smoke', b.x + (b.type === 'factory' ? 0.9 : 0.3), b.y + (b.type === 'factory' ? 3.4 : 1.8), b.z - 0.8, 1);
       }
     }
+    this._seasonal(dt);
     this._followTerrain(dt);
     // insanlar
     const dead = [];
@@ -881,7 +947,7 @@ export class Colony {
     if (!sleeping) n.energy = Math.max(0, n.energy - dt * 0.42 * (act === 'chop' || act === 'build' || act === 'farm' ? 1.5 : 1) * (this.night ? 1.3 : 1));
     n.fun = Math.max(0, n.fun - dt * 0.32 * (sleeping ? 0.3 : 1));
     n.social = Math.max(0, n.social - dt * 0.26 * (sleeping ? 0.3 : 1));
-    n.clean = Math.max(0, n.clean - dt * 0.2 * (act === 'chop' || act === 'farm' || act === 'build' ? 2 : 1));
+    n.clean = Math.max(0, n.clean - dt * 0.2 * D_SEASON[this.season].dirt * (act === 'chop' || act === 'farm' || act === 'build' ? 2 : 1));
     // sağlık
     if (n.food <= 1) p.health -= dt * 0.7;
     else if (p.sick) p.health -= dt * (this.has('sifa') ? 0.04 : 0.12);
@@ -898,6 +964,13 @@ export class Colony {
     if (p.partner >= 0) this.addThought(p, 'sevgili', 'Sevdiği biri var', 6, 4);
     if (!h && p.age >= 2) this.addThought(p, 'evsiz', 'Barınağı yok', -6, 4);
     else if (h) this.addThought(p, 'evvar', 'Evi var', 4, 4);
+    // mevsim ruh hali
+    if (this.season === 3) {
+      if (!h) { this.addThought(p, 'usuyor', 'Kışın açıkta üşüyor', -8, 4); if (!p.sick && drnd() < dt * 0.003) p.sick = true; }
+      else if (!this.warm) this.addThought(p, 'soguk', 'Ev soğuk, odun lazım', -5, 4);
+    } else if (this.season === 0) this.addThought(p, 'bahar', 'Bahar havasını soludu', 3, 4);
+    else if (this.season === 1 && this.weather === 'clear') this.addThought(p, 'gunes', 'Güneşli gün keyfi', 2, 4);
+    if ((this.weather === 'rain' || this.weather === 'storm') && p.act && p.act.phase === 'do' && (act === 'chop' || act === 'farm' || act === 'forage' || act === 'fish' || act === 'build')) this.addThought(p, 'islak', 'Yağmurda ıslandı', -3, 30);
     const gp = this.res.goods / Math.max(1, this.people.length);
     if (gp >= 1) this.addThought(p, 'esya', 'Eşyalarla konforlu', Math.min(8, 2 + gp), 4);
     let th = 0; for (const t of p.thoughts) th += t.v;
@@ -922,7 +995,7 @@ export class Colony {
     for (const f of this.people) {
       if (!f.female || f.partner < 0 || f.age < 18 || f.age > 42) continue;
       const m = this.getPerson(f.partner); if (!m) continue;
-      f.birthT = (f.birthT === undefined ? 50 + drnd() * 50 : f.birthT) - dt;
+      f.birthT = (f.birthT === undefined ? 50 + drnd() * 50 : f.birthT) - dt * (this.season === 0 ? 1.4 : 1);
       if (f.birthT > 0) continue;
       f.birthT = 70 + drnd() * 60;
       const cap = this.buildings.filter((b) => b.type === 'house' && b.prog >= 1).length * this.houseCap();
@@ -968,8 +1041,12 @@ export class Colony {
     this.evTimer -= dt;
     if (this.evTimer > 0 || this.queue.length > 2 || this.people.length === 0) return;
     this.evTimer = 55 + drnd() * 60;
-    const cand = [];
+    let cand = [];
     for (const e of D_EVENTS) { const ctx = e.when(this); if (ctx) cand.push([e, ctx]); }
+    // mevsim yeni başladıysa o mevsimin olayı öncelikli; mevsim olayları başka zaman çıkmaz
+    const fresh = this.fresh >= 0 ? cand.filter(([e]) => e.season === this.fresh) : [];
+    this.fresh = -1;
+    cand = fresh.length ? fresh : cand.filter(([e]) => e.season === undefined);
     if (!cand.length) { this.evTimer = 20; return; }
     let tot = 0; for (const [e] of cand) tot += e.weight;
     let r = drnd() * tot;
@@ -988,7 +1065,7 @@ export class Colony {
     return {
       v: 1, people: this.people.map((p) => { const q = Object.assign({}, p); q.act = null; q.hidden = false; q.sleeping = false; q.lying = false; q.moving = false; return q; }),
       buildings: this.buildings.map((b) => Object.assign({}, b, { worker: -1, workers: [] })), res: this.res, tech: this.tech, pts: this.pts, xp: this.xp, lvl: this.lvl,
-      time: this.time, nextId: this.nextId, evTimer: this.evTimer, log: this.log.slice(0, 20),
+      time: this.time, nextId: this.nextId, evTimer: this.evTimer, log: this.log.slice(0, 20), era: this.era,
     };
   }
   fromJSON(d) {
@@ -998,6 +1075,7 @@ export class Colony {
     Object.assign(this.res, d.res); this.tech = d.tech || { koke: 1 }; this.pts = d.pts | 0; this.xp = +d.xp || 0; this.lvl = d.lvl || 1;
     this.time = +d.time || 0; this.nextId = d.nextId || 1; this.evTimer = +d.evTimer || 40; this.log = d.log || [];
     this.sellMul = this.has('ticaret') ? 1.5 : 1;
+    this.era = Math.max(this.eraOf(), d.era | 0);
     for (const b of this.buildings) for (let z = b.cz; z < b.cz + b.h; z++) for (let x = b.cx; x < b.cx + b.w; x++) this.occ[z * N + x] = b.id;
     return true;
   }
@@ -1015,6 +1093,60 @@ const twoAdults = (c) => { const a = adults(c); if (a.length < 2) return null; c
 const mm = (a, b) => (a.stats.cha + b.stats.cha) / 20;
 
 export const D_EVENTS = [
+  {
+    id: 'spring', season: 0, weight: 1, when: (c) => (c.fresh === 0 && c.people.length >= 2 ? {} : null),
+    make: (c) => ({
+      title: '🌸 Bahar Şenliği', ids: [],
+      text: 'Kar eridi, çiçekler açtı. Köylüler baharı karşılamak istiyor.',
+      choices: [
+        { t: '🌱 Ekim şenliği (−2 buğday)', f: () => {
+          if (c.res.wheat < 2) return 'Tohumluk buğday yok.';
+          let n = 0; c.res.wheat -= 2;
+          for (const b of c.buildings) if (b.type === 'field' && b.prog >= 1 && b.stage === 0 && b.worker < 0) { b.stage = 1; b.timer = 42 * (c.has('tohum') ? 0.75 : 1) * (c.has('sulama') ? 0.85 : 1); b.total = b.timer; n++; }
+          for (const q of c.people) c.addThought(q, 'ekim', 'Ekim şenliği neşeliydi', 8, 200);
+          return n ? n + ' tarla hep birlikte ekildi!' : 'Ekilecek boş tarla yoktu ama herkes eğlendi.';
+        } },
+        { t: '🌼 Çiçek toplama günü', f: () => { c.res.berry += 5; for (const q of c.people) { q.need.fun = 100; c.addThought(q, 'cicek', 'Çiçek toplamaya gitti', 8, 200); } return '+5 yemiş, herkes neşelendi.'; } },
+        { t: '🙅 Çalışmaya devam', f: () => 'Köylüler işine döndü.' },
+      ],
+    }),
+  },
+  {
+    id: 'summer', season: 1, weight: 1, when: (c) => (c.fresh === 1 && c.people.length >= 2 ? {} : null),
+    make: (c) => ({
+      title: '☀️ Yaz Panayırı', ids: [],
+      text: 'Komşu köylerin tüccarları panayır kuruyor. Gün sıcak, dere serin.',
+      choices: [
+        { t: '🛍️ Panayırda sat', f: () => { const g = c.sell('goods', Math.floor(c.res.goods)); const bonus = g * 0.3; c.res.gold += bonus; return g ? Math.floor(g + bonus) + ' altın kazandın (panayır +%30).' : 'Satacak eşyan yok.'; } },
+        { t: '🏊 Dere kenarında eğlence', f: () => { for (const q of c.people) { q.need.fun = 100; q.need.clean = 100; c.addThought(q, 'dere', 'Derede serinledi', 9, 220); } return 'Herkes serinleyip tertemiz oldu.'; } },
+        c.has('balik1') ? { t: '🎣 Balık yarışı', f: () => { const a = adults(c); const w = a.reduce((s, x) => (x.stats.agi + x.skill.fish * 0.1 > s.stats.agi + s.skill.fish * 0.1 ? x : s), a[0]); c.res.fish += 6; for (const q of c.people) c.addThought(q, 'yaris', 'Balık yarışı eğlenceliydi', 7, 200); c.addThought(w, 'kazandi', 'Balık yarışını kazandı!', 12, 300); return w.name + ' yarışı kazandı! +6 balık.'; } } : { t: '🧺 Piknik yap (−2 yemiş)', f: () => { if (c.res.berry >= 2) c.res.berry -= 2; for (const q of c.people) c.addThought(q, 'piknik', 'Pikniğin tadını çıkardı', 7, 200); return 'Hoş bir gün geçti.'; } },
+      ],
+    }),
+  },
+  {
+    id: 'autumn', season: 2, weight: 1, when: (c) => (c.fresh === 2 && c.people.length >= 2 ? {} : null),
+    make: (c) => ({
+      title: '🍂 Hasat Şenliği', ids: [],
+      text: 'Hasat zamanı geldi! Sonbaharda ürün %25 fazla. Şenlik mi, kışlık hazırlığı mı?',
+      choices: [
+        { t: '🍖 Büyük şenlik (−4 yemek)', f: () => { for (const k of ['wheat', 'berry', 'fish', 'egg', 'milk']) if (c.res[k] >= 4) { c.res[k] -= 4; break; } for (const q of c.people) { q.need.fun = 100; q.need.social = Math.min(100, q.need.social + 30); c.addThought(q, 'hasatsenlik', 'Hasat Şenliği harikaydı!', 12, 260); } return 'Köy bir şenlik yaşadı, moraller tavan!'; } },
+        { t: '📦 Kışlık depola', f: () => { c.res.wheat += 6; c.res.berry += 4; return '+6 buğday, +4 yemiş ambara girdi.'; } },
+        { t: '💰 Pazarda sat', f: () => { c.res.gold += 7 * c.sellMul; return 'Fazla ürün satıldı: +' + Math.floor(7 * c.sellMul) + ' altın.'; } },
+      ],
+    }),
+  },
+  {
+    id: 'winter', season: 3, weight: 1, when: (c) => (c.fresh === 3 && c.people.length >= 1 ? {} : null),
+    make: (c) => ({
+      title: '❄️ Sert kış geliyor', ids: [],
+      text: 'Ekinler duracak, evleri ısıtmak için odun yanacak. Köy hazır mı?',
+      choices: [
+        { t: '🪵 Ek odun topla (+8 odun)', f: () => { c.res.wood += 8; for (const q of c.people) q.need.energy = Math.max(0, q.need.energy - 15); return 'Herkes odun taşıdı: +8 odun, hepsi yorgun.'; } },
+        { t: '🔥 Ortak ateş etrafında topla', f: () => { for (const q of c.people) { q.need.social = Math.min(100, q.need.social + 25); q.need.fun = Math.min(100, q.need.fun + 20); c.addThought(q, 'ortakates', 'Ateşin başında ısındı', 7, 260); } return 'Köy ateşin başında kış masalları anlattı.'; } },
+        { t: '🧣 Kışlık giysi dağıt (−3 eşya)', f: () => { if (c.res.goods < 3) return 'Yeterli eşyan yok.'; c.res.goods -= 3; for (const q of c.people) c.addThought(q, 'giysi', 'Sıcacık giyindi', 9, 320); return 'Herkes sıcacık giyindi; kış daha kolay geçecek.'; } },
+      ],
+    }),
+  },
   {
     id: 'argue', weight: 3, when: (c) => twoAdults(c),
     make: (c, [a, b]) => ({

@@ -129,6 +129,12 @@ Ortak kural: `build.mjs` `src/detail.js, cozy.js, climate.js, audio.js` dosyalar
 - Kayıt: evler `[cell,tribe,rot,prog,era,kind]`, köyler `[cx,cz,era,kn,food,age,hAll,harv,mH,mP,mF,gone]`, `farms`, `log`, `logId`. Eski kayıtlar (`[cx,cz]` köyler, çağsız evler) yüklenir. **Kayıt dosyalarını depoya koyma.**
 - Test: `node test_era.mjs` (çağ, tarla tutarlılığı, günlük, kayıt turu + eski biçim, kış donu).
 
+### Detaylı mod: mevsim etkileri ve çağ (`src/detail.js`)
+- `main.js` her adımda `colony.setEnv(CL.season, CL.weather, CL.temp)` çağırır (ilk çağrı yalnız durumu alır, mevsim değişince `_seasonChanged` günlüğe yazar, `evTimer`'ı kısaltır ve `fresh` işaretler). Tablo: `D_SEASON` (ekin büyümesi, yemiş toplama, balık, kirlenme, hasat çarpanı). Yağmur/fırtına ekini ×1.25 büyütür; kışın ekim yapılmaz (`_jobOptions`), kış başında yarıdan az büyümüş körpe ekin donar; kışta `_seasonal` her 10 sn evleri odunla ısıtır (ev başına 0.2 odun) — odun biterse `warm=false` ve evde "soğuk" düşüncesi, evsiz kişi üşür/hastalanabilir; ilkbaharda doğum ×1.4, yağmurda dışarıda çalışanlar ıslanır.
+- **Mevsim olayları**: `D_EVENTS` içinde `season: n` taşıyanlar (Bahar Şenliği, Yaz Panayırı, Hasat Şenliği, Sert Kış) yalnız mevsim yeni başlayınca (`fresh`) çıkar; `_events` o zaman onlara öncelik verir, başka zaman çıkarmaz.
+- **Çağ** (`D_ERAS`, `eraOf()`): beceri ağacındaki anahtar becerilerden türer — Tarım (`tarim1`), Demir (`balta`+`ev2`), Sanayi (`sanayi2`), Modern (`sanayi3`+`bilim`). Çağ atlayınca +1 beceri puanı, günlük satırı, `colony.onEra` (toast + `fx 'era'`); üst çubukta çağ rozeti (`#dEra`, tooltip sonraki hedefi söyler). Kayıtta `era`.
+- Test: `node test_season.mjs` (çağ ilerlemesi, mevsim geçişleri, kış büyüme durması, ısıtma/odun, mevsim olayları, kayıt). Not: 1 yıl = 20 sn (`D_YEAR`), bu yüzden 800 sn'den uzun testlerde yaşlılıktan ölümler başlar.
+
 ## Yayın (GitHub)
 - Depo: https://github.com/suslu22/mini-dunya (herkese açık, dal: `main`). Oyun adresi: **https://suslu22.github.io/mini-dunya/**
 - `main`'e her push'ta `.github/workflows/pages.yml` çalışır: `node build.mjs` → `dist/` GitHub Pages'e yüklenir (~1 dk). `dist/` git'te yok (`.gitignore`), yerelde `node build.mjs` ile üretilir.

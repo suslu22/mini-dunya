@@ -51,6 +51,7 @@ function dToolClick(t) {
 /* ---------------------------------------------------------------- kaynak çubuğu */
 const dbarEl = $('dbar'), dpplEl = $('dppl'), dpanelEl = $('dpanel'), dbpanelEl = $('dbpanel');
 dbarEl.innerHTML = D_REST.map(([k, i, n]) => '<span class="rc" data-k="' + k + '" title="' + n + '">' + i + ' <b>0</b></span>').join('') +
+  '<span class="rc" id="dEra" data-tip="Köyün çağı|Sonraki çağ için: Tarım becerisini aç.">🪨 <b>Taş Çağı</b></span>' +
   '<span class="rc mood" id="dMood" title="Köyün mutluluğu">🙂 <b>70</b></span>' +
   '<button class="rc star" id="dStar" title="Beceri ağacı">⭐ <b>2</b><i><u id="dXp"></u></i></button>' +
   '<button class="rc" id="dLogB" title="Olay günlüğü">📜</button>';
@@ -65,6 +66,7 @@ dbarEl.onclick = (e) => {
     if (g > 0) toast('🪵 Yarım odun satıldı: +' + g.toFixed(1) + ' 🪙');
   }
 };
+let dEraShown = 0;
 function detailHud() {
   $('pop').textContent = '👥 ' + colony.people.length;
   $('houses').textContent = '🏠 ' + colony.buildings.filter((b) => b.type === 'house' && b.prog >= 1).length;
@@ -74,6 +76,11 @@ function detailHud() {
     el.style.display = shown ? '' : 'none';
     el.firstElementChild.textContent = k === 'gold' ? v.toFixed(1) : String(Math.floor(v));
     el.classList.toggle('low', (k === 'berry' || k === 'wood') && v < 3);
+  }
+  if (dEraShown !== colony.era) {
+    dEraShown = colony.era; const E = D_ERAS[dEraShown];
+    $('dEra').innerHTML = E.i + ' <b>' + E.n + '</b>';
+    $('dEra').dataset.tip = 'Köyün çağı|' + (E.goal ? 'Sonraki çağ için: ' + E.goal + '.' : 'En üst çağa ulaştınız 🎉');
   }
   const m = Math.round(colony.mood);
   $('dMood').innerHTML = dFace(m, false) + ' <b>' + m + '</b>';
@@ -288,6 +295,7 @@ $('dLogB').onclick = () => {
   logEl.hidden = false; dModalOpen = true;
 };
 logEl.addEventListener('click', (e) => { if (e.target.id === 'logClose' || e.target === logEl) { logEl.hidden = true; dModalOpen = !!dCurEv || !treeEl.hidden; maybeEvent(); } });
+colony.onEra = (e) => { toast('🌟 Çağ atladınız: ' + D_ERAS[e].i + ' ' + D_ERAS[e].n + '!'); const p = colony.people[0]; if (p) world.fx('era', p.x, p.y, p.z, e); };
 colony.onLevel = (l) => { toast('⭐ Köy seviye ' + l + ' oldu! +1 beceri puanı'); };
 
 /* ---------------------------------------------------------------- mod seçimi & geçiş */
