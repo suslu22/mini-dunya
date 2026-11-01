@@ -805,7 +805,15 @@ function updateMeteors(dt) {
 let shakeAmt = 0;
 const flashEl = $('flash');
 let flashA = 0;
+const FX_SND = { splash: 'splash', chips: 'chop', spark: 'spark', debris: 'debris', explode: 'explode', bolt: 'bolt', heart: 'heart', dust: 'dust', fire: 'fire' };
+// Ses kamera odağına uzaklıkla azalır (Ada Modu'nda oyuncunun konumu odak olur).
+function auAt(name, x, z, vol = 1) {
+  if (!AU.ready) return;
+  const f = gameMode === 'cozy' ? cozy.p : cam, d = Math.hypot(x - f.x, z - f.z), r = gameMode === 'cozy' ? 34 : 26 + cam.dist * 1.3;
+  auSfx(name, vol * Math.max(0, 1 - d / r));
+}
 world.fx = (type, x, y, z, v) => {
+  if (FX_SND[type]) auAt(FX_SND[type], x, z, type === 'fire' ? 0.6 : 1);
   switch (type) {
     case 'puff':
       for (let k = 0; k < 5; k++) emit(x, y, z, R1() * 1.2, 0.4 + Math.random() * 0.8, R1() * 1.2, 0.6, 0.2, 0.9, 0.9, 0.86, -0.4);
@@ -1181,7 +1189,7 @@ const TOOL_TIPS = {
 let tool = 'hand', cat = 0, brushSize = 4, flatH = 0, lastSpawn = 0;
 const toolsEl = $('tools'), tabsEl = $('tabs');
 function toast(msg) {
-  const t = $('toast'); t.textContent = msg; t.classList.add('show');
+  const t = $('toast'); t.textContent = msg; t.classList.add('show'); auSfx('notify', 0.7);
   clearTimeout(toast.h); toast.h = setTimeout(() => t.classList.remove('show'), 1600);
 }
 function buildDock() {
@@ -1221,6 +1229,11 @@ $('size').oninput = (e) => { brushSize = +e.target.value; $('sizev').textContent
 
 function useTool(dt, first) {
   const x = hit.x, z = hit.z, r = brushSize, now = performance.now() / 1000;
+  if (AU.ready) {
+    const sn = { up: 'dig', down: 'dig', flat: 'dig', grass: 'plant', sand: 'dig', snow: 'dust', rock: 'dig', human: 'pop', village: 'build', forest: 'plant', clear: 'chop', fire: 'fire', lava: 'fire', erase: 'dust' }[tool];
+    if (sn && (first || sn === 'dig' || sn === 'fire' || sn === 'plant' || sn === 'chop')) auSfx(sn, first ? 0.9 : 0.5);
+    if (tool === 'meteor' && first) auSfx('meteor');
+  }
   if (gameMode === 'detail' && tool.startsWith('d:')) { detailTool(tool, first); return; }
   switch (tool) {
     case 'up': case 'down': world.editTerrain(tool, x, z, r, dt, 0); break;
@@ -1400,6 +1413,35 @@ $('mLow').onchange = (e) => setStyle(!e.target.checked);
 document.querySelectorAll('[data-tilt]').forEach((b) => { b.onclick = () => { userTilt = b.dataset.tilt === 'on'; tiltTouched = true; applyLevel(); savePrefs(); }; });
 setSeg('segW', 'on', (v) => { world.war = v === 'on'; });
 setSeg('segF', 'off', (v) => { document.body.classList.toggle('showfps', v === 'on'); });   // hem Simülasyon hem Ada Modu göstergesi
+/* ---------------------------------------------------------------- ses arayüzü */
+function auSyncUI() {
+  $('aSfx').checked = AU.on.sfx; $('aAmb').checked = AU.on.amb; $('aMus').checked = AU.on.mus; $('aVol').value = AU.vol;
+  $('mSnd').checked = AU.on.sfx || AU.on.amb; $('mMus').checked = AU.on.mus;
+}
+$('aSfx').onchange = (e) => { auUnlock(); auSetOpt('sfx', e.target.checked); auSyncUI(); auSfx('pop'); };
+$('aAmb').onchange = (e) => { auUnlock(); auSetOpt('amb', e.target.checked); auSyncUI(); };
+$('aMus').onchange = (e) => { auUnlock(); auSetOpt('mus', e.target.checked); auSyncUI(); };
+$('aVol').oninput = (e) => { auUnlock(); auSetOpt('vol', +e.target.value); auSfx('tick'); };
+$('mSnd').onchange = (e) => { auUnlock(); auSetOpt('sfx', e.target.checked); auSetOpt('amb', e.target.checked); auSyncUI(); auSfx('pop'); };
+$('mMus').onchange = (e) => { auUnlock(); auSetOpt('mus', e.target.checked); auSyncUI(); };
+auSyncUI();
+// Tarayıcılar sesi ilk dokunuşa kadar kilitli tutar
+for (const ev of ['pointerdown', 'click', 'touchend', 'keydown']) addEventListener(ev, auUnlock, { capture: true, passive: true });
+document.addEventListener('click', (e) => { if (e.target.closest && e.target.closest('button,label.sw')) auSfx('click'); }, true);
+let auWaterT = 0, auWater = 0;
+function auScene(dt) {
+  auWaterT -= dt;
+  if (auWaterT <= 0) {   // odağın çevresindeki sahil/deniz oranı (dalga sesi için)
+    auWaterT = 0.5;
+    const f = gameMode === 'cozy' ? cozy.p : cam; let n = 0;
+    for (let k = 0; k < 10; k++) { const a = k * 0.628, rr = 4 + (k % 2) * 9; if (world.getHeight(f.x + Math.cos(a) * rr, f.z + Math.sin(a) * rr) < SEA + 0.15) n++; }
+    auWater = Math.min(1, n / 5);
+  }
+  return {
+    mode: inMenu ? 'menu' : gameMode === 'cozy' ? 'cozy' : gameMode === 'detail' ? 'detail' : 'sim',
+    hour: tod * 24, season: 0, rain: world.raining ? 1 : 0, snow: 0, storm: 0, water: auWater, wind: 0.3,
+  };
+}
 $('timeSpd').oninput = (e) => { timeSpeed = +e.target.value; $('timeSpdV').textContent = timeSpeed === 0 ? 'duruyor' : timeSpeed + '×'; };
 function newWorld() {
   if (gameMode === 'detail') detailNewWorld();
@@ -1669,6 +1711,7 @@ function frame() {
   else { cozyCamReset(); updateCamera(dt); }
   updateRain(dt, cam.x, cam.z, 70);
   updateSky();
+  auFrame(dt, auScene(dt));
   updateClouds(dt);
   updateMeteors(dt);
   updateParticles(dt);
@@ -1740,5 +1783,5 @@ addEventListener('resize', resize);
 $('loading').style.display = 'none';
 window.__started = true;
 showMenu();
-window.__game = { setTod: (v) => { tod = v; }, world, colony, camera, enterMode, get cozy() { return cozy; }, cv, czOpen, czCloseAll, cozySetMode, cozyTapIso, cozyNewWorld, get inMenu() { return inMenu; }, dSelect, get gameMode() { return gameMode; }, saveGame, loadGame, openSaves,setLevel: (l) => { qualityMode = 'manual'; level = l; applyLevel(); }, setStyle, setQuality, startGame, showMenu, get isReal() { return isReal; }, renderer, cam, toast, setTool: (t) => { tool = t; buildDock(); }, TOOLS, get tool() { return tool; }, HD, DEC, hdApply, get level() { return level; }, buildHuman, lookOf, poseHuman, scene };
+window.__game = { AU, auSfx, auLevel, auUnlock, setTod: (v) => { tod = v; }, world, colony, camera, enterMode, get cozy() { return cozy; }, cv, czOpen, czCloseAll, cozySetMode, cozyTapIso, cozyNewWorld, get inMenu() { return inMenu; }, dSelect, get gameMode() { return gameMode; }, saveGame, loadGame, openSaves,setLevel: (l) => { qualityMode = 'manual'; level = l; applyLevel(); }, setStyle, setQuality, startGame, showMenu, get isReal() { return isReal; }, renderer, cam, toast, setTool: (t) => { tool = t; buildDock(); }, TOOLS, get tool() { return tool; }, HD, DEC, hdApply, get level() { return level; }, buildHuman, lookOf, poseHuman, scene };
 requestAnimationFrame(frame);

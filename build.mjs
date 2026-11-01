@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 const sim = fs.readFileSync('src/sim.js', 'utf8').replace(/^export /gm, '');
 const strip = (s) => s.replace(/^export /gm, '').replace(/^import .*$/gm, '');
-const detailLogic = strip(fs.readFileSync('src/detail.js', 'utf8')) + '\n' + strip(fs.readFileSync('src/cozy.js', 'utf8'));
+const detailLogic = strip(fs.readFileSync('src/detail.js', 'utf8')) + '\n' + strip(fs.readFileSync('src/cozy.js', 'utf8')) + '\n' + strip(fs.readFileSync('src/audio.js', 'utf8'));
 const detailParts = ['src/detail_view.js', 'src/human.js', 'src/detail_ui.js', 'src/cozy_view.js', 'src/cozy_ui.js'].map((f) => fs.readFileSync(f, 'utf8')).join('\n');
 const hdSrc = fs.readFileSync('src/hd.js', 'utf8'), decorSrc = fs.readFileSync('src/decor.js', 'utf8');
 const main = fs.readFileSync('src/main.js', 'utf8').replace('//@@HD@@', () => hdSrc).replace('//@@DECOR@@', () => decorSrc).replace('//@@DETAIL@@', () => detailParts);const THREE_VER = '0.170.0';
@@ -295,6 +295,11 @@ const html = `<!DOCTYPE html>
   <div class="seg" id="segW"><button data-v="on">Açık</button><button data-v="off">Kapalı</button></div>
   <div class="row">Gün/gece hızı: <span id="timeSpdV">1×</span></div>
   <input id="timeSpd" type="range" min="0" max="4" step="0.5" value="1">
+  <div class="row">Ses ve müzik</div>
+  <label class="sw" style="margin-top:6px;padding-top:8px"><span>🔊 Ses efektleri</span><input type="checkbox" id="aSfx"><i></i></label>
+  <label class="sw" style="margin-top:6px;padding-top:8px"><span>🌿 Ortam sesleri</span><input type="checkbox" id="aAmb"><i></i></label>
+  <label class="sw" style="margin-top:6px;padding-top:8px"><span>🎵 Müzik</span><input type="checkbox" id="aMus"><i></i></label>
+  <input id="aVol" type="range" min="0" max="1" step="0.05" style="margin-top:8px" data-tip="Ses seviyesi|Tüm seslerin ana ses düzeyi.">
   <div class="row">FPS göstergesi</div>
   <div class="seg" id="segF"><button data-v="on">Açık</button><button data-v="off">Kapalı</button></div>
   <button class="big" id="bNew">🌍 Yeni dünya oluştur</button>
@@ -329,6 +334,8 @@ const html = `<!DOCTYPE html>
     <h4>Grafikler:</h4>
     <div class="gq" id="gQ"><button data-q="uplus">Ultra+</button><button data-q="ultra">Ultra</button><button data-q="high">Yüksek</button><button data-q="mid">Orta</button><button data-q="low">Düşük</button></div>
     <div id="gdesc"></div>
+    <label class="sw"><span>🔊 Ses ve ortam</span><input type="checkbox" id="mSnd"><i></i></label>
+    <label class="sw" style="margin-top:8px;padding-top:8px"><span>🎵 Müzik</span><input type="checkbox" id="mMus"><i></i></label>
     <label class="sw"><span>Low-Poly grafikleri</span><input type="checkbox" id="mLow"><i></i></label>
     <div class="shint">Açıkken eski düz yüzeyli maket görünümü gelir.</div>
   </div>

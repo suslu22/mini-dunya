@@ -593,10 +593,10 @@ function cozyEvents() {
       case 'shake': world.fx('dust', e.x, gy + 1.8, e.z, 1); break;
       case 'grew': world.fx('heart', e.x, gy + 1.2, e.z, 1); cToastQ.push('🌳 Bir fidan ağaç oldu!'); break;
       case 'eat': world.fx('heart', cozy.p.x, cozy.p.y + 1.2, cozy.p.z, 1); break;
-      case 'bite': cToastQ.unshift('❗ Balık yakaladı! Çek!'); cToastT = 0; break;
-      case 'pickup': { const it = Z_ITEMS[e.id]; if (it) cFloat('+' + (e.n || 1) + ' ' + it.i, e.x === undefined ? cozy.p.x : e.x, e.z === undefined ? cozy.p.z : e.z); break; }
-      case 'catch': { const it = Z_ITEMS[e.id]; if (it) cFloat(it.i + ' ' + it.n + '!', e.x, e.z, cozy.p.y + 0.6); world.fx('heart', e.x, cozy.p.y + 1.5, e.z, 1); break; }
-      case 'newday': cToastQ.push('☀️ Yeni bir gün başladı — Gün ' + cozy.day); czRefresh(); break;
+      case 'bite': cToastQ.unshift('❗ Balık yakaladı! Çek!'); cToastT = 0; auSfx('bite'); break;
+      case 'pickup': { auSfx('coin', 0.6); const it = Z_ITEMS[e.id]; if (it) cFloat('+' + (e.n || 1) + ' ' + it.i, e.x === undefined ? cozy.p.x : e.x, e.z === undefined ? cozy.p.z : e.z); break; }
+      case 'catch': { auSfx('catch'); const it = Z_ITEMS[e.id]; if (it) cFloat(it.i + ' ' + it.n + '!', e.x, e.z, cozy.p.y + 0.6); world.fx('heart', e.x, cozy.p.y + 1.5, e.z, 1); break; }
+      case 'newday': auSfx('bell', 0.7); cToastQ.push('☀️ Yeni bir gün başladı — Gün ' + cozy.day); czRefresh(); break;
       case 'arrive': czArrive(); break;
     }
   }
