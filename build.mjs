@@ -68,6 +68,9 @@ body.inmenu #hud{display:none}
 .gq{display:flex;flex-direction:column;gap:6px}
 .gq button,.seg button.qb{height:38px;border-radius:11px;border:0;background:rgba(255,255,255,.09);color:#e6ebf8;font-size:14px;font-weight:600;cursor:pointer;text-align:left;padding:0 13px}
 .gq button.on,.seg button.qb.on{background:#7fe0b0;color:#08231a}
+#gQm{display:none}
+@media (pointer:coarse){#gQ{display:none!important}#gQm{display:flex}}
+@media (pointer:coarse) and (max-width:760px){#gQm{display:grid;grid-template-columns:1fr 1fr}}
 #gdesc{font-size:11.5px;color:#9fb0dc;margin:8px 2px 0;min-height:15px}
 .sw{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:14px;padding-top:12px;border-top:1px solid rgba(255,255,255,.12);font-size:14px;font-weight:600;cursor:pointer}
 .sw input{position:absolute;opacity:0;pointer-events:none}
@@ -240,6 +243,7 @@ body.showfps #fps,body.showfps #czfps{display:inline-block}
 #czfight .fb{position:relative;height:22px;border-radius:12px;background:rgba(10,14,28,.8);border:2px solid rgba(255,255,255,.4);overflow:hidden}
 #czfight .fz{position:absolute;top:0;bottom:0;border-radius:8px;background:linear-gradient(#8bff9f,#2fbf5c)}
 #czfight .fm{position:absolute;top:-2px;bottom:-2px;width:6px;margin-left:-3px;border-radius:3px;background:#fff;box-shadow:0 0 8px #fff}
+@media (max-width:760px){#czfight{bottom:calc(228px + env(safe-area-inset-bottom));width:min(66vw,280px)}}
 #czfight small{display:inline-block;margin-top:6px;padding:3px 12px;border-radius:10px;background:rgba(10,14,28,.78);font-size:12.5px;font-weight:800;color:#fff}
 #czphoto{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(14px + env(safe-area-inset-bottom));display:flex;gap:8px;flex-wrap:wrap;justify-content:center;width:max-content;max-width:96vw}
 #czphoto[hidden]{display:none}
@@ -330,6 +334,8 @@ const html = `<!DOCTYPE html>
   <h3>⚙️ Ayarlar</h3>
   <div class="row">Grafik kalitesi</div>
   <div class="seg wrap"><button class="qb" data-q="auto">Oto</button><button class="qb" data-q="low">Düşük</button><button class="qb" data-q="mid">Orta</button><button class="qb" data-q="high">Yüksek</button><button class="qb" data-q="ultra">Ultra</button><button class="qb" data-q="uplus">Ultra+</button></div>
+  <div class="row" style="margin-top:12px">📱 Mobil grafikler</div>
+  <div class="seg wrap"><button class="qb" data-q="mauto">Mobil Oto</button><button class="qb" data-q="mlow">Mobil Düşük</button><button class="qb" data-q="mmid">Mobil Orta</button><button class="qb" data-q="mhigh">Mobil Yüksek</button></div>
   <div id="qlabel"></div>
   <div class="row">Low-Poly grafikleri</div>
   <div class="seg"><button data-style="low">Açık</button><button data-style="real">Kapalı</button></div>
@@ -384,6 +390,7 @@ const html = `<!DOCTYPE html>
   <div id="gfx" class="glass">
     <h4>Grafikler:</h4>
     <div class="gq" id="gQ"><button data-q="uplus">Ultra+</button><button data-q="ultra">Ultra</button><button data-q="high">Yüksek</button><button data-q="mid">Orta</button><button data-q="low">Düşük</button></div>
+    <div class="gq" id="gQm"><button data-q="mhigh">Mobil Yüksek</button><button data-q="mmid">Mobil Orta</button><button data-q="mlow">Mobil Düşük</button><button data-q="mauto">Mobil Oto</button></div>
     <div id="gdesc"></div>
     <label class="sw"><span>🔊 Ses ve ortam</span><input type="checkbox" id="mSnd"><i></i></label>
     <label class="sw" style="margin-top:8px;padding-top:8px"><span>🎵 Müzik</span><input type="checkbox" id="mMus"><i></i></label>

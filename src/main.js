@@ -608,6 +608,7 @@ oakT.instanceMatrix = oakM.instanceMatrix; pineT.instanceMatrix = pineM.instance
 oakT.castShadow = pineT.castShadow = false;
 scene.add(oakM, pineM, oakT, pineT);
 
+let treeK = 1, rainFrac = 1, snowFrac = 1;   // mobil kademeler çizilen ağaç / yağış yoğunluğunu azaltır
 const AUTUMN = [[0.82, 0.3, 0.03], [0.88, 0.58, 0.06], [0.55, 0.12, 0.04], [0.72, 0.66, 0.1]];   // sonbahar yaprak renkleri
 function rebuildTrees() {
   const A = oakM.instanceMatrix.array, AC = oakM.instanceColor.array;
@@ -617,6 +618,7 @@ function rebuildTrees() {
   for (let cell = 0; cell < N * N; cell++) {
     const t = T[cell]; if (!t) continue;
     const cx = cell % N, cz = (cell / N) | 0;
+    if (treeK < 1 && hash2(cx, cz, 9) > treeK) continue;
     const j1 = hash2(cx, cz, 1), j2 = hash2(cx, cz, 2), j3 = hash2(cx, cz, 3);
     const x = cx - HALF + 0.5 + (j1 - 0.5) * 0.5, z = cz - HALF + 0.5 + (j2 - 0.5) * 0.5;
     const y = world.getHeight(x, z) - 0.04;
@@ -963,8 +965,9 @@ function updateRain(dt, cx, cz, span) {
   rainK = CL.rain;
   rain.visible = rainK > 0.02; rainMat.opacity = (0.5 + 0.15 * CL.storm) * rainK;
   if (!rain.visible) return;
-  const t = U.uTime.value, slant = 0.12 + CL.storm * 0.35;
-  for (let i = 0; i < RAIN_N; i++) {
+  const t = U.uTime.value, slant = 0.12 + CL.storm * 0.35, rn = Math.max(1, Math.round(RAIN_N * rainFrac));
+  rainGeo.setDrawRange(0, rn * 2);
+  for (let i = 0; i < rn; i++) {
     const sx = rainSeed[i * 3], sy = rainSeed[i * 3 + 1], sz = rainSeed[i * 3 + 2];
     const x = cx + (sx - 0.5) * span, z = cz + (sz - 0.5) * span;
     const y = 40 - ((sy * 40 + t * 38) % 40);
@@ -1001,7 +1004,7 @@ function updateAir(dt, cx, cz, span) {
   const sk = CL.snow;
   snowPts.visible = sk > 0.02; snowPts.material.opacity = 0.95 * sk;
   if (snowPts.visible) {
-    const n = level >= 3 ? SNOW_N : 520, A = snowPts.geometry.attributes.position.array;
+    const n = Math.round((level >= 3 ? SNOW_N : 520) * snowFrac), A = snowPts.geometry.attributes.position.array;
     snowPts.geometry.setDrawRange(0, n);
     for (let i = 0; i < n; i++) {
       const sx = pSeed[i * 4], sy = pSeed[i * 4 + 1], sz = pSeed[i * 4 + 2], ph = pSeed[i * 4 + 3];
@@ -1177,16 +1180,32 @@ const LEVELS = [
   { pr: 2.0, shadow: 4096, treeShadow: true, post: true, bloom: 1, hd: 1024, deco: [32, 2.2] },
   { pr: 2.0, ss: 1.35, shadow: 4096, treeShadow: true, post: true, bloom: 1.6, hd: 2048, deco: [44, 3.5], grade: 1 },
 ];
-const TIERS = { low: 1, mid: 2, high: 3, ultra: 4, uplus: 5 };
+const TIERS = { low: 1, mid: 2, high: 3, ultra: 4, uplus: 5, mlow: 1, mmid: 2, mhigh: 3 };
 const TIER_NAMES = ['Çok düşük', 'Düşük', 'Orta', 'Yüksek', 'Ultra', 'Ultra+'];
+// Mobil kademeler: LEVELS tabanının üstüne telefon için hafifletme uygular (çözünürlük, gölge, parlama yok, az ağaç/yağış)
+// pr: çizim çözünürlüğü çarpanı · shadow: gölge haritası · tree/rain/snow: çizilen ağaç ve yağış oranı
+const MOBQ = { mauto: 0, mlow: 1, mmid: 2, mhigh: 3 };
+const MOBILE = [
+  { pr: 0.7, shadow: 0, post: false, hd: 0, deco: null, tree: 0.45, rain: 0.25, snow: 0.2 },
+  { pr: 0.85, shadow: 0, post: false, hd: 0, deco: null, tree: 0.6, rain: 0.4, snow: 0.3 },
+  { pr: 1.0, shadow: 1024, post: false, hd: 0, deco: [10, 0.5], tree: 0.8, rain: 0.6, snow: 0.55 },
+  { pr: 1.5, shadow: 2048, post: true, hd: 512, deco: [16, 0.9], tree: 1, rain: 0.85, snow: 0.85 },
+];
+const MOB_NAMES = ['Mobil çok düşük', 'Mobil düşük', 'Mobil orta', 'Mobil yüksek'];
+const isMobQ = () => qualityMode in MOBQ;
+const isAutoQ = () => qualityMode === 'auto' || qualityMode === 'mauto';
 const TIER_DESC = {
   low: 'Gölgesiz, en akıcı', mid: 'Gölgeler, orta çözünürlük', high: 'Ağaç gölgeleri, 512 px HD dokular, çim detayı',
   ultra: 'Parlama efekti, 4K gölge, 1K HD dokular, yoğun çim ve çiçek',
   uplus: 'Süper örnekleme, 2K HD dokular, en yoğun çim, sinematik renk (güçlü ekran kartı)',
   auto: 'FPS’e göre otomatik',
+  mauto: 'Telefon için: FPS’e göre otomatik, pil dostu',
+  mlow: 'Telefon: gölgesiz, düşük çözünürlük, seyrek ağaç ve yağış — en akıcı',
+  mmid: 'Telefon: hafif gölgeler, orta çözünürlük',
+  mhigh: 'Telefon: gölgeler, 512 px HD doku, çim detayı, post-işleme (güçlü telefonlar)',
 };
-let qualityMode = prefs.q && (prefs.q === 'auto' || TIERS[prefs.q]) ? prefs.q : (coarse ? 'mid' : 'high');
-let level = TIERS[qualityMode] || (coarse ? 2 : 3), levelCap = 4, curPR = 1;
+let qualityMode = prefs.q && (prefs.q === 'auto' || prefs.q in MOBQ || TIERS[prefs.q]) ? prefs.q : (coarse ? 'mauto' : 'high');
+let level = TIERS[qualityMode] || 2, levelCap = qualityMode in MOBQ ? 3 : 4, curPR = 1;
 const litMats = [terrainMat, trunkMat, leafMat, wallMat, roofMat, cloudMat];
 function resize() {
   const w = window.innerWidth, h = window.innerHeight;
@@ -1227,7 +1246,11 @@ function savePrefs() {
   try { localStorage.setItem(SAVE_KEY, JSON.stringify({ q: qualityMode === 'manual' ? 'high' : qualityMode, low: !isReal, tilt: userTilt })); } catch (_) { /* yoksay */ }
 }
 function applyLevel() {
-  const c = LEVELS[level], dpr = window.devicePixelRatio || 1;
+  const c0 = LEVELS[level], mb = isMobQ() ? MOBILE[Math.min(level, 3)] : null, dpr = window.devicePixelRatio || 1;
+  const c = mb ? { ...c0, pr: mb.pr, ss: 0, shadow: mb.shadow, treeShadow: false, post: mb.post, bloom: 0, hd: mb.hd, deco: mb.deco, grade: 0 } : c0;
+  const tk = mb ? mb.tree : 1;
+  rainFrac = mb ? mb.rain : 1; snowFrac = mb ? mb.snow : 1;
+  if (tk !== treeK) { treeK = tk; world.treesDirty = true; }
   curPR = c.ss ? clamp(dpr * c.ss, 1.5, 2.25) : c.pr < 1 ? c.pr : Math.min(c.pr, dpr);
   hdApply(isReal && c.hd ? c.hd : 0);
   decorConfig(isReal && c.deco ? c.deco : null);
@@ -1248,7 +1271,7 @@ function applyLevel() {
   applyGeo();
   if (wasShadow !== renderer.shadowMap.enabled) litMats.forEach((m) => { m.needsUpdate = true; });
   resize();
-  $('qlabel').textContent = qualityMode === 'auto' ? 'Otomatik (şu an: ' + TIER_NAMES[level] + ')' : TIER_DESC[qualityMode] || '';
+  $('qlabel').textContent = qualityMode === 'auto' ? 'Otomatik (şu an: ' + TIER_NAMES[level] + ')' : qualityMode === 'mauto' ? 'Mobil Oto (şu an: ' + MOB_NAMES[Math.min(level, 3)] + ')' : TIER_DESC[qualityMode] || '';
   refreshGfxUI();
 }
 // Gerçekçi ↔ Low-Poly geçişi: palet, ışık, tonlama, su rengi, model seti ve arazi yeniden kurulur.
@@ -1569,7 +1592,7 @@ function setSeg(group, val, cb) {
 }
 function setQuality(v) {
   qualityMode = v;
-  if (TIERS[v]) level = TIERS[v]; else { level = Math.min(level, coarse ? 3 : 4); levelCap = 4; }
+  if (TIERS[v]) level = TIERS[v]; else { level = Math.min(level, coarse || v === 'mauto' ? 3 : 4); levelCap = v === 'mauto' ? 3 : 4; }
   applyLevel(); savePrefs();
 }
 function setStyle(real) { if (isReal === real) return; isReal = real; applyStyle(); savePrefs(); }
@@ -1955,7 +1978,7 @@ function frame() {
     const avg = accT / frames, fps = frames / accT;
     const fpsTxt = Math.round(fps) + ' FPS · ' + world.treeCount + ' ağaç · k' + level;
     $('fps').textContent = fpsTxt; $('czfps').textContent = fpsTxt;
-    if (qualityMode === 'auto' && !paused && realT > 6) {
+    if (isAutoQ() && !paused && realT > 6) {
       if (avg > 0.024 && level > 0) {
         if (realT - lastUp < 9) levelCap = Math.min(levelCap, level - 1);
         level--; goodWin = 0; applyLevel();
