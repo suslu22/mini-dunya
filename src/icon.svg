@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="md-bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#8be4ff"/>
+      <stop offset="0.55" stop-color="#3b97ea"/>
+      <stop offset="1" stop-color="#1b4fb8"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="116" fill="url(#md-bg)"/>
+  <circle cx="392" cy="116" r="40" fill="#fff4b0" opacity=".45"/>
+  <circle cx="392" cy="116" r="26" fill="#ffe27a"/>
+  <g fill="#fff" opacity=".9">
+    <ellipse cx="120" cy="124" rx="44" ry="16"/>
+    <ellipse cx="146" cy="110" rx="30" ry="16"/>
+  </g>
+  <ellipse cx="256" cy="402" rx="196" ry="70" fill="none" stroke="#fff" stroke-opacity=".35" stroke-width="6"/>
+  <ellipse cx="256" cy="402" rx="150" ry="52" fill="none" stroke="#fff" stroke-opacity=".25" stroke-width="5"/>
+  <!-- ada: yan yüzler -->
+  <polygon points="88,292 256,388 256,432 88,336" fill="#b98a52"/>
+  <polygon points="256,388 424,292 424,336 256,432" fill="#94693a"/>
+  <!-- ada: üst yüz (low-poly yüzeyler) -->
+  <polygon points="256,196 88,292 256,292" fill="#82e08a"/>
+  <polygon points="256,196 424,292 256,292" fill="#5fc872"/>
+  <polygon points="88,292 256,388 256,292" fill="#6ad27c"/>
+  <polygon points="424,292 256,388 256,292" fill="#4fb465"/>
+  <!-- ağaç -->
+  <rect x="186" y="262" width="12" height="28" fill="#7a4f2a"/>
+  <polygon points="192,196 160,256 224,256" fill="#2f9e5a"/>
+  <polygon points="192,170 168,222 216,222" fill="#38b36a"/>
+  <!-- ev -->
+  <polygon points="300,278 322,290 322,322 300,310" fill="#f6dfb2"/>
+  <polygon points="322,290 346,278 346,310 322,322" fill="#dfbb84"/>
+  <polygon points="294,278 322,256 350,278 322,292" fill="#e5574f"/>
+  <polygon points="294,278 322,292 322,298 294,284" fill="#b9413b"/>
+</svg>

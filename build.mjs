@@ -300,10 +300,12 @@ body.photo #hud,body.photo #floppy,body.photo #clabels,body.photo #cfloat,body.p
 #czName{width:100%;height:40px;border-radius:12px;border:1px solid rgba(255,255,255,.25);background:rgba(255,255,255,.1);color:#fff;font-size:16px;font-weight:700;padding:0 12px;user-select:text;-webkit-user-select:text}
 #err{position:fixed;left:10px;right:10px;bottom:10px;background:rgba(150,20,20,.92);padding:10px 12px;border-radius:12px;font-size:12px;z-index:30;display:none;user-select:text;-webkit-user-select:text;word-break:break-word}
 `;
+const icon = encodeURIComponent(fs.readFileSync('src/icon.svg', 'utf8').replace(/\s*\n\s*/g, ''));
 const html = `<!DOCTYPE html>
 <html lang="tr"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>Mini Dünya</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,${icon}">
 <style>${css}</style>
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@${THREE_VER}/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@${THREE_VER}/examples/jsm/"}}</script>
 </head><body>
