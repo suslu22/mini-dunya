@@ -25,12 +25,33 @@ const czBagIds = () => Object.keys(cozy.bag).filter((id) => Z_ITEMS[id]).sort((a
 
 DEC.blocked = (cx, cz) => gameMode === 'cozy' && cozy.obj.has(cz * N + cx);   // eşyaların altında çim çıkmasın
 
+/* ---------------------------------------------------------------- ipuçları (tooltip metinleri) */
+const CZ_TOOL_TIPS = {
+  hand: 'Gezin, ağaç salla, çiçek ve ot topla, yerdeki eşyaları al, köylülerle ve panoyla konuş.',
+  axe: 'Ağaçlara vurup odun toplarsın. Meyve için ağacı Eller ile sallamak yeter.',
+  shovel: 'Çukur kazar, fosil arar, kaya kırar; çiçek, fidan ve kütüğü kökünden söker.',
+  rod: 'Suya yaklaşıp oltayı at; balık yem yutunca ÇEK! yazısı çıkar, tekrar bas.',
+  net: 'Yakındaki böceği yakalamak için ağı salla. Kelebeklere sessizce yaklaş.',
+  can: 'Ektiğin çiçek ve fidanları sular; suladığın bitki daha çabuk büyür.',
+};
+const CZ_USE = (it) => it.eat ? 'Yiyebilirsin.' : it.plant !== undefined ? 'Eline alıp toprağa ekersin; suladıkça büyür.' : it.sap ? 'Eline alıp toprağa dikersin; suladıkça ağaca dönüşür.' :
+  it.furn ? 'Eline alıp adaya yerleştirebilirsin.' : it.flower !== undefined ? 'Köylülere hediye edebilir ya da satabilirsin.' :
+  it.cat ? 'Dükkânda sat ya da bir köylüye hediye et.' : 'Yapım Tezgâhı\'nda malzeme olarak kullanılır; dükkânda satılır.';
+const CZ_KIND = (it) => it.cat === 'fish' ? 'Balık' : it.cat === 'bug' ? 'Böcek' : it.cat === 'fos' ? 'Fosil' : it.furn ? 'Mobilya' : it.eat ? 'Yiyecek' :
+  it.plant !== undefined ? 'Çiçek tohumu' : it.sap ? 'Fidan' : it.flower !== undefined ? 'Çiçek' : 'Malzeme';
+// eşya ipucu: "Başlık|Açıklama" (özellik değeri olarak güvenle kullanılsın diye kaçışlı)
+const czItemTip = (id) => {
+  const it = Z_ITEMS[id], n = cozy.count(id);
+  return esc(it.i + ' ' + it.n + (n ? ' ×' + n : '') + '|' + CZ_KIND(it) + ' · satış ' + czFmt(it.sell) + ' 🔔' + (it.buy ? ' · mağaza ' + czFmt(it.buy) + ' 🔔' : '') + '\n' + CZ_USE(it));
+};
+const czTip = (title, desc, key) => ' data-tip="' + esc(title + '|' + (desc || '') + (key ? '|' + key : '')) + '"';
+
 /* ---------------------------------------------------------------- HUD */
 function czBuildBar() {
   const p = cozy.p;
   let h = '';
-  Z_TOOLS.forEach((t, i) => { h += '<button class="czt' + (p.tool === i && !p.held ? ' on' : '') + '" data-i="' + i + '" title="' + t.n + ' (' + (i + 1) + ')"><span>' + t.i + '</span><i>' + (i + 1) + '</i></button>'; });
-  if (p.held) { const it = Z_ITEMS[p.held]; h += '<button class="czt on held" data-h="1" title="' + esc(it.n) + ' — bırak"><span>' + it.i + '</span><b>' + cozy.count(p.held) + '</b></button>'; }
+  Z_TOOLS.forEach((t, i) => { h += '<button class="czt' + (p.tool === i && !p.held ? ' on' : '') + '" data-i="' + i + '"' + czTip(t.i + ' ' + t.n, CZ_TOOL_TIPS[t.id], String(i + 1)) + '><span>' + t.i + '</span><i>' + (i + 1) + '</i></button>'; });
+  if (p.held) { const it = Z_ITEMS[p.held]; h += '<button class="czt on held" data-h="1"' + czTip(it.i + ' ' + it.n + ' ×' + cozy.count(p.held), 'Elinde tutuyorsun. Tıklarsan bırakırsın; imleç hedefi gösterirken Boşluk / E ile kullanırsın.', '0') + '><span>' + it.i + '</span><b>' + cozy.count(p.held) + '</b></button>'; }
   czBar.innerHTML = h;
   czBarSig = p.tool + '|' + p.held + '|' + (p.held ? cozy.count(p.held) : 0);
 }
@@ -42,15 +63,18 @@ czBar.addEventListener('click', (e) => {
 function czSyncUI() {
   czBuildBar();
   $('czCamB').textContent = CZ_CAM_ICON[cv.mode];
-  $('czCamB').title = 'Kamera: ' + CAM_NAMES[cv.mode] + ' (C)';
+  $('czCamB').dataset.tip = 'Kamera: ' + CAM_NAMES[cv.mode] + '|Kamera modunu değiştirir: üçüncü şahıs, birinci şahıs, izometrik.|C';
 }
 function czHud() {
   const p = cozy.p, sig = p.tool + '|' + p.held + '|' + (p.held ? cozy.count(p.held) : 0);
   if (sig !== czBarSig) czBuildBar();
   const hh = tod * 24, hr = Math.floor(hh), mn = Math.floor((hh - hr) * 60), night = hh < 5.8 || hh >= 19.5;
-  const html = '<span>🔔 ' + czFmt(cozy.zil) + '</span><span>' + '⭐'.repeat(cozy.stars) + '</span><span>' + (night ? '🌙 ' : '☀️ ') +
-    String(hr).padStart(2, '0') + ':' + String(mn).padStart(2, '0') + '</span><span>Gün ' + cozy.day + '</span>' +
-    (cozy.rainNow ? '<span>🌧️</span>' : '') + '<span>🎒 ' + Object.keys(cozy.bag).length + '/' + Z_BAG_MAX + '</span>';
+  const html = '<span' + czTip('Zil', 'Adanın para birimi. Balık, böcek ve fosil satarak kazanırsın.') + '>🔔 ' + czFmt(cozy.zil) + '</span>' +
+    '<span' + czTip('Ada puanı: ' + cozy.stars + ' yıldız', 'Ağaç, çiçek, eşya, temizlik ve sakinlerle yükselir. Ayrıntı için Ada Panosu\'na bak.') + '>' + '⭐'.repeat(cozy.stars) + '</span>' +
+    '<span' + czTip('Saat', 'Dükkân ' + String(Z_SHOP_OPEN[0]).padStart(2, '0') + ':00–' + Z_SHOP_OPEN[1] + ':00 arası açık. Gece böcekler ve balıklar değişir.') + '>' + (night ? '🌙 ' : '☀️ ') +
+    String(hr).padStart(2, '0') + ':' + String(mn).padStart(2, '0') + '</span><span' + czTip('Gün ' + cozy.day, 'Evde uyuyunca yeni güne geçilir; bitkiler büyür, dükkân yenilenir.') + '>Gün ' + cozy.day + '</span>' +
+    (cozy.rainNow ? '<span' + czTip('Yağmur yağıyor', 'Yağmur ektiğin bitkileri kendiliğinden sular.') + '>🌧️</span>' : '') +
+    '<span' + czTip('Çanta', 'Taşıdığın farklı eşya türü sayısı (en fazla ' + Z_BAG_MAX + '). Çantayı açmak için B tuşuna bas.', 'B') + '>🎒 ' + Object.keys(cozy.bag).length + '/' + Z_BAG_MAX + '</span>';
   if (html !== czStatSig) { czStatSig = html; czStatsEl.innerHTML = html; }
 }
 function czPromptSet(txt, kind) {
@@ -125,7 +149,7 @@ function czRender() {
   if (f) f();
   czBox.scrollTop = st;
 }
-const czHead = (title, right) => '<div class="czh"><b>' + title + '</b><span>' + (right || '') + '</span><button class="czx" data-a="close">✕</button></div>';
+const czHead = (title, right) => '<div class="czh"><b>' + title + '</b><span>' + (right || '') + '</span><button class="czx" data-a="close"' + czTip('Kapat', 'Pencereyi kapatır.', 'Esc') + '>✕</button></div>';
 const czMoney = () => '🔔 ' + czFmt(cozy.zil);
 
 /* ---------------------------------------------------------------- çanta */
@@ -135,14 +159,15 @@ function czRBag() {
   let h = czHead('🎒 Çanta', czMoney() + ' · ' + ids.length + '/' + Z_BAG_MAX);
   if (!ids.length) h += '<div class="czemp">Çantan boş. Ağaç salla, balık tut, böcek yakala, kürekle kaz!</div>';
   else {
-    h += '<div class="czgrid">' + ids.map((id) => '<button class="czi' + (id === czSel ? ' sel' : '') + '" data-a="sel" data-id="' + id + '"><span>' + Z_ITEMS[id].i + '</span><b>' + cozy.count(id) + '</b></button>').join('') + '</div>';
+    h += '<div class="czgrid">' + ids.map((id) => '<button class="czi' + (id === czSel ? ' sel' : '') + '" data-a="sel" data-id="' + id + '" data-tip="' + czItemTip(id) + '"><span>' + Z_ITEMS[id].i + '</span><b>' + cozy.count(id) + '</b></button>').join('') + '</div>';
     const it = Z_ITEMS[czSel];
     if (it) {
       h += '<div class="czinfo"><div class="czit">' + it.i + ' ' + esc(it.n) + ' <small>×' + cozy.count(czSel) + '</small></div><div class="czsub">Satış değeri: ' + czFmt(it.sell) + ' 🔔' + (it.buy ? ' · Mağaza fiyatı: ' + czFmt(it.buy) + ' 🔔' : '') + '</div><div class="czbt">';
-      if (it.eat) h += '<button data-a="eat" data-id="' + czSel + '">😋 Ye</button>';
-      else if (it.plant !== undefined) h += '<button data-a="hold" data-id="' + czSel + '">🌱 Eline al · ek</button>';
-      else if (it.sap) h += '<button data-a="hold" data-id="' + czSel + '">🌳 Eline al · dik</button>';
-      else if (it.furn) h += '<button data-a="hold" data-id="' + czSel + '">📥 Eline al · yerleştir</button>';
+      const hold = czTip('Eline al', 'Eşya elinde durur; hedefe bakıp Boşluk / E ile kullanırsın. Bırakmak için 0 tuşuna bas.');
+      if (it.eat) h += '<button data-a="eat" data-id="' + czSel + '"' + czTip('Ye', 'Yiyeceği hemen yersin.') + '>😋 Ye</button>';
+      else if (it.plant !== undefined) h += '<button data-a="hold" data-id="' + czSel + '"' + hold + '>🌱 Eline al · ek</button>';
+      else if (it.sap) h += '<button data-a="hold" data-id="' + czSel + '"' + hold + '>🌳 Eline al · dik</button>';
+      else if (it.furn) h += '<button data-a="hold" data-id="' + czSel + '"' + hold + '>📥 Eline al · yerleştir</button>';
       else h += '<span class="czsub">Dükkânda satabilirsin.</span>';
       h += '</div></div>';
     }
@@ -154,21 +179,23 @@ function czRBag() {
 function czRShop() {
   const tab = czTab.shop, L = cozy.shopList();
   let h = czHead('🏪 Tomris\'in Dükkânı', czMoney());
-  h += '<div class="czseg"><button class="' + (tab === 'buy' ? 'on' : '') + '" data-a="tab" data-t="buy">Satın al</button><button class="' + (tab === 'sell' ? 'on' : '') + '" data-a="tab" data-t="sell">Sat</button></div>';
+  h += '<div class="czseg"><button class="' + (tab === 'buy' ? 'on' : '') + '" data-a="tab" data-t="buy"' + czTip('Satın al', 'Tohum, fidan ve bugünün mobilyalarını zil karşılığında alırsın.') + '>Satın al</button><button class="' + (tab === 'sell' ? 'on' : '') + '" data-a="tab" data-t="sell"' + czTip('Sat', 'Çantandaki eşyaları zile çevirirsin.') + '>Sat</button></div>';
   if (tab === 'buy') {
     const sec = (title, ids) => '<h5>' + title + '</h5>' + ids.map((id) => {
       const it = Z_ITEMS[id];
-      return '<div class="czrow"><span class="ci">' + it.i + '</span><span class="cn">' + esc(it.n) + '</span><span class="cp">' + czFmt(it.buy) + ' 🔔</span><button data-a="buy" data-id="' + id + '"' + (cozy.zil < it.buy ? ' disabled' : '') + '>Al</button></div>';
+      return '<div class="czrow" data-tip="' + czItemTip(id) + '"><span class="ci">' + it.i + '</span><span class="cn">' + esc(it.n) + '</span><span class="cp">' + czFmt(it.buy) + ' 🔔</span><button data-a="buy" data-id="' + id + '"' + (cozy.zil < it.buy ? ' disabled' : '') +
+        czTip('Satın al', cozy.zil < it.buy ? 'Yeterli zilin yok (' + czFmt(it.buy) + ' 🔔 gerekli).' : czFmt(it.buy) + ' 🔔 ödeyip çantana eklersin.') + '>Al</button></div>';
     }).join('');
     h += sec('Tohumlar', L.seeds) + sec('Fidanlar', L.saps) + sec('Bugünün eşyaları', L.furn);
   } else {
     const ids = czBagIds();
-    h += '<div class="czquick">' + [['fish', '🐟 Balıklar'], ['bug', '🦋 Böcekler'], ['fos', '🦴 Fosiller'], ['flw', '🌷 Çiçekler'], ['mat', '🪵 Malzemeler']]
-      .map(([c, t]) => '<button data-a="sellcat" data-c="' + c + '">' + t + '</button>').join('') + '</div>';
+    h += '<div class="czquick">' + [['fish', '🐟 Balıklar', 'tüm balıkları'], ['bug', '🦋 Böcekler', 'tüm böcekleri'], ['fos', '🦴 Fosiller', 'tüm fosilleri'], ['flw', '🌷 Çiçekler', 'tüm çiçekleri'], ['mat', '🪵 Malzemeler', 'odun, taş, kil, demir, ot ve kabukları']]
+      .map(([c, t, d]) => '<button data-a="sellcat" data-c="' + c + '"' + czTip('Sat: ' + t.replace(/^\S+\s/, ''), 'Çantandaki ' + d + ' tek seferde satar.') + '>' + t + '</button>').join('') + '</div>';
     if (!ids.length) h += '<div class="czemp">Satacak bir şeyin yok.</div>';
     h += ids.map((id) => {
       const it = Z_ITEMS[id], n = cozy.count(id);
-      return '<div class="czrow"><span class="ci">' + it.i + '</span><span class="cn">' + esc(it.n) + ' <small>×' + n + '</small></span><span class="cp">' + czFmt(it.sell) + ' 🔔</span><button data-a="sell" data-id="' + id + '" data-n="1">1</button>' + (n > 1 ? '<button data-a="sell" data-id="' + id + '" data-n="all">Hepsi</button>' : '') + '</div>';
+      return '<div class="czrow" data-tip="' + czItemTip(id) + '"><span class="ci">' + it.i + '</span><span class="cn">' + esc(it.n) + ' <small>×' + n + '</small></span><span class="cp">' + czFmt(it.sell) + ' 🔔</span><button data-a="sell" data-id="' + id + '" data-n="1"' + czTip('Bir tane sat', '+' + czFmt(it.sell) + ' 🔔 kazanırsın.') + '>1</button>' +
+        (n > 1 ? '<button data-a="sell" data-id="' + id + '" data-n="all"' + czTip('Hepsini sat', n + ' adet için +' + czFmt(it.sell * n) + ' 🔔 kazanırsın.') + '>Hepsi</button>' : '') + '</div>';
     }).join('');
   }
   czBox.innerHTML = h;
@@ -181,7 +208,9 @@ function czRCraft() {
   h += Z_RECIPES.map((r, i) => {
     const it = Z_ITEMS[r.out], ok = cozy.canCraft(r);
     const need = Object.keys(r.need).map((k) => '<span class="' + (cozy.count(k) >= r.need[k] ? 'ok' : 'no') + '">' + Z_ITEMS[k].i + ' ' + cozy.count(k) + '/' + r.need[k] + '</span>').join('');
-    return '<div class="czrow rc2"><span class="ci">' + it.i + '</span><span class="cn">' + esc(it.n) + (r.n ? ' <small>×' + r.n + '</small>' : '') + '<div class="cneed">' + need + '</div></div><button data-a="craft" data-i="' + i + '"' + (ok ? '' : ' disabled') + '>Yap</button></div>';
+    const needTxt = Object.keys(r.need).map((k) => r.need[k] + ' ' + Z_ITEMS[k].n).join(', ');
+    return '<div class="czrow rc2"' + czTip(it.i + ' ' + it.n + (r.n ? ' ×' + r.n : ''), 'Gerekenler: ' + needTxt + '. ' + CZ_USE(it)) + '><span class="ci">' + it.i + '</span><span class="cn">' + esc(it.n) + (r.n ? ' <small>×' + r.n + '</small>' : '') + '<div class="cneed">' + need + '</div></div><button data-a="craft" data-i="' + i + '"' + (ok ? '' : ' disabled') +
+      czTip('Yap', ok ? 'Malzemeleri harcayıp ' + it.n.toLowerCase() + ' üretir.' : 'Malzemelerin yetmiyor: ' + needTxt + ' gerekli.') + '>Yap</button></div>';
   }).join('');
   czBox.innerHTML = h;
 }
@@ -192,12 +221,14 @@ function czRCat() {
   const key = (e, k) => (tab === 'fos' ? k : e.id);
   const got = src.filter((e, k) => book[key(e, k)]).length;
   let h = czHead('📖 Rehber', got + '/' + src.length);
-  h += '<div class="czseg">' + [['fish', '🐟 Balık'], ['bug', '🦋 Böcek'], ['fos', '🦴 Fosil']].map(([t, n]) => '<button class="' + (tab === t ? 'on' : '') + '" data-a="tab" data-t="' + t + '">' + n + '</button>').join('') + '</div>';
+  h += '<div class="czseg">' + [['fish', '🐟 Balık', 'Oltayla tuttuğun balıklar.'], ['bug', '🦋 Böcek', 'Ağla yakaladığın böcekler.'], ['fos', '🦴 Fosil', 'Kürekle kazıp çıkardığın fosiller.']]
+    .map(([t, n, d]) => '<button class="' + (tab === t ? 'on' : '') + '" data-a="tab" data-t="' + t + '"' + czTip(n.replace(/^\S+\s/, '') + ' rehberi', d) + '>' + n + '</button>').join('') + '</div>';
   h += '<div class="czcards">' + src.map((e, k) => {
     const n = book[key(e, k)] || 0;
     const hrs = e.h ? String(e.h[0]).padStart(2, '0') + ':00–' + String(e.h[1]).padStart(2, '0') + ':00' : 'her zaman';
-    return n ? '<div class="czcard"><span>' + e.i + '</span><b>' + esc(e.n) + '</b><small>×' + n + ' · ' + czFmt(e.sell) + ' 🔔</small>' + (e.h ? '<small>' + hrs + '</small>' : '') + '</div>'
-      : '<div class="czcard off"><span>❓</span><b>???</b><small>' + (e.h ? hrs : 'kazarak bul') + '</small></div>';
+    const how = tab === 'fish' ? 'Oltanı suya atarak yakala.' : tab === 'bug' ? 'Böcek ağıyla yakala.' : 'Küreğinle adada kazarak bul.';
+    return n ? '<div class="czcard"' + czTip(e.i + ' ' + e.n, n + ' kez buldun · değeri ' + czFmt(e.sell) + ' 🔔' + (e.h ? ' · en çok ' + hrs + ' arası' : '') + '.') + '><span>' + e.i + '</span><b>' + esc(e.n) + '</b><small>×' + n + ' · ' + czFmt(e.sell) + ' 🔔</small>' + (e.h ? '<small>' + hrs + '</small>' : '') + '</div>'
+      : '<div class="czcard off"' + czTip('Henüz bulunmadı', how + (e.h ? ' Aktif saatler: ' + hrs + '.' : '')) + '><span>❓</span><b>???</b><small>' + (e.h ? hrs : 'kazarak bul') + '</small></div>';
   }).join('') + '</div>';
   czBox.innerHTML = h;
 }
@@ -207,18 +238,22 @@ function czRHome() {
   const hh = cozy.hour;
   czBox.innerHTML = czHead('🏠 Evin', 'Gün ' + cozy.day) +
     '<div class="czsub" style="margin:4px 2px 10px">' + (hh >= 19 || hh < 6 ? 'Gün batmış, yatma vakti.' : 'Küçük ama sıcacık bir ev.') + '</div>' +
-    '<div class="czbig"><button data-a="sleep">🛏️ Uyu — yeni güne geç</button><button data-a="look">👕 Görünümünü değiştir</button><button data-a="save">💾 Kaydet</button></div>';
+    '<div class="czbig"><button data-a="sleep"' + czTip('Uyu', 'Yeni güne geçer: bitkiler büyür, dükkân yenilenir, tamamlanan köylü istekleri tazelenir.') + '>🛏️ Uyu — yeni güne geç</button><button data-a="look"' + czTip('Görünüm', 'Adını, saçını, kıyafetini ve renklerini değiştirirsin.') + '>👕 Görünümünü değiştir</button><button data-a="save"' + czTip('Kaydet', 'Kayıtlar penceresini açar: yuvaya kaydet, yükle ya da dosyaya aktar.') + '>💾 Kaydet</button></div>';
 }
 function czRBoard() {
   const r = cozy.rating(), P = r.parts, V = cozy.vill.length;
-  const bar = (ico, name, v, txt) => '<div class="czbar"><span>' + ico + ' ' + name + '</span><div><i style="width:' + Math.round(Math.max(0, Math.min(1, v)) * 100) + '%"></i></div><small>' + txt + '</small></div>';
+  const bar = (ico, name, v, txt, tip) => '<div class="czbar"' + czTip(ico + ' ' + name, tip) + '><span>' + ico + ' ' + name + '</span><div><i style="width:' + Math.round(Math.max(0, Math.min(1, v)) * 100) + '%"></i></div><small>' + txt + '</small></div>';
   const S = cozy.stats, nxt = [32, 52, 72, 90].find((t) => t > r.score);
   let h = czHead('📋 Ada Panosu', czMoney());
   h += '<div class="czstars">' + '⭐'.repeat(r.stars) + '<span>' + '☆'.repeat(5 - r.stars) + '</span></div><div class="czsub" style="text-align:center">Ada puanı: ' + r.score + '/100' + (nxt ? ' · sonraki yıldız: ' + nxt : ' · harika bir ada!') + '</div>';
-  h += bar('🌳', 'Ağaçlar', P.trees / 140, P.trees + '/140') + bar('🌷', 'Çiçekler', P.flowers / 30, P.flowers + '/30') + bar('🪑', 'Eşyalar', P.furn / 14, P.furn + '/14') +
-    bar('🌿', 'Temizlik', 1 - P.weeds / 70, P.weeds + ' yabani ot') + bar('🏠', 'Sakinler', V / 5, V + '/5');
+  h += bar('🌳', 'Ağaçlar', P.trees / 140, P.trees + '/140', 'Adadaki ağaç sayısı. Fidan dikip suladıkça artar; 140 ağaç puanı doldurur.') +
+    bar('🌷', 'Çiçekler', P.flowers / 30, P.flowers + '/30', 'Ektiğin çiçekler. Tohum al, ek ve sula; 30 çiçek puanı doldurur.') +
+    bar('🪑', 'Eşyalar', P.furn / 14, P.furn + '/14', 'Adaya yerleştirdiğin mobilyalar. 14 eşya puanı doldurur.') +
+    bar('🌿', 'Temizlik', 1 - P.weeds / 70, P.weeds + ' yabani ot', 'Ne kadar az yabani ot, o kadar yüksek puan. Otları yolup temiz tut.') +
+    bar('🏠', 'Sakinler', V / 5, V + '/5', 'Adaya taşınan köylüler. Yıldız arttıkça yeni sakinler gelir.');
   h += '<div class="czsub" style="margin:10px 2px 4px">⭐⭐⭐ yıldızda Berkin, ⭐⭐⭐⭐⭐ yıldızda Selin adaya taşınır.</div>';
-  h += '<div class="czstat"><span>🐟 ' + S.fish + '</span><span>🦋 ' + S.bugs + '</span><span>🦴 ' + S.fos + '</span><span>🌱 ' + S.planted + '</span><span>🌳 ' + S.trees + '</span><span>💰 ' + czFmt(S.earned) + '</span></div>';
+  h += '<div class="czstat"><span' + czTip('Yakalanan balık', 'Şimdiye kadar tuttuğun balık sayısı.') + '>🐟 ' + S.fish + '</span><span' + czTip('Yakalanan böcek', 'Şimdiye kadar yakaladığın böcek sayısı.') + '>🦋 ' + S.bugs + '</span><span' + czTip('Bulunan fosil', 'Kazıp çıkardığın fosil sayısı.') + '>🦴 ' + S.fos +
+    '</span><span' + czTip('Ekilen bitki', 'Şimdiye kadar ektiğin tohum ve fidan sayısı.') + '>🌱 ' + S.planted + '</span><span' + czTip('Kesilen ağaç', 'Baltayla kestiğin ağaç sayısı.') + '>🌳 ' + S.trees + '</span><span' + czTip('Toplam kazanç', 'Satış ve isteklerden kazandığın toplam zil.') + '>💰 ' + czFmt(S.earned) + '</span></div>';
   czBox.innerHTML = h;
 }
 
@@ -235,7 +270,8 @@ function czRTalk() {
     const it = Z_ITEMS[q.id];
     h += '<div class="czquest' + (q.done ? ' done' : '') + '"><b>' + (q.done ? '✅ İstek tamamlandı' : '❗ İstek') + '</b><div>' + it.i + ' ' + esc(it.n) + ' × ' + q.n + ' <small>(sende ' + cozy.count(q.id) + ')</small></div><small>Ödül: ' + czFmt(q.reward) + ' 🔔</small></div>';
   }
-  h += '<div class="czbig">' + (q && !q.done ? '<button data-a="quest">📦 İsteği ver</button>' : '') + '<button data-a="giftmenu">🎁 Hediye ver' + (v.gifted ? ' <small>(bugün verildi)</small>' : '') + '</button><button data-a="close">👋 Güle güle</button></div>';
+  h += '<div class="czbig">' + (q && !q.done ? '<button data-a="quest"' + czTip('İsteği ver', 'İstenen eşyaları verip ' + czFmt(q.reward) + ' 🔔 ödülü alırsın.') + '>📦 İsteği ver</button>' : '') +
+    '<button data-a="giftmenu"' + czTip('Hediye ver', v.gifted ? 'Bugün zaten hediye verdin; yarın tekrar dene.' : 'Çantandan bir eşya hediye et. Sevdiği şey arkadaşlığı çok artırır.') + '>🎁 Hediye ver' + (v.gifted ? ' <small>(bugün verildi)</small>' : '') + '</button><button data-a="close"' + czTip('Güle güle', 'Sohbeti bitirir.', 'Esc') + '>👋 Güle güle</button></div>';
   czBox.innerHTML = h;
 }
 function czRGift() {
@@ -243,8 +279,8 @@ function czRGift() {
   const favs = { flower: '🌷 çiçekleri', fish: '🐟 balıkları', fruit: '🍎 meyveleri', bug: '🦋 böcekleri', fos: '🦴 fosilleri' };
   let h = czHead('🎁 ' + esc(v.name) + ' için hediye', '');
   h += '<div class="czsub" style="margin:2px 2px 8px">' + esc(v.name) + ' en çok ' + favs[v.fav] + ' sever. Günde bir hediye verebilirsin.</div>';
-  h += ids.length ? '<div class="czgrid">' + ids.map((id) => '<button class="czi" data-a="gift" data-id="' + id + '" title="' + esc(Z_ITEMS[id].n) + '"><span>' + Z_ITEMS[id].i + '</span><b>' + cozy.count(id) + '</b></button>').join('') + '</div>' : '<div class="czemp">Çantan boş.</div>';
-  h += '<div class="czbig"><button data-a="back">← Geri</button></div>';
+  h += ids.length ? '<div class="czgrid">' + ids.map((id) => '<button class="czi" data-a="gift" data-id="' + id + '" data-tip="' + czItemTip(id) + '"><span>' + Z_ITEMS[id].i + '</span><b>' + cozy.count(id) + '</b></button>').join('') + '</div>' : '<div class="czemp">Çantan boş.</div>';
+  h += '<div class="czbig"><button data-a="back"' + czTip('Geri', 'Hediye vermeden sohbete dönersin.') + '>← Geri</button></div>';
   czBox.innerHTML = h;
 }
 

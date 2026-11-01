@@ -12,6 +12,7 @@ const czBlocked = () => czModalOpen || czSleeping || !$('settings').hidden || !$
 const cv = {
   mode: 'tp', yaw: 0.2, dyaw: 0.2, pitch: 0.42, dist: 5.6, ddist: 5.6, fpAng: 0, fpPitch: 0, iso: 0, isoDist: 17, disoDist: 17,
   joy: { x: 0, y: 0 }, fov: 36, near: 0.5, preview: false, pend: null, vw: null, shown: false,
+  wph: 0, as: 0, mv: false,   // yürüme fazı, yumuşatılmış hız, yürüyor mu (histerezis)
 };
 try { const m = localStorage.getItem('minidunya.cozycam'); if (m === 'fp' || m === 'tp' || m === 'iso') cv.mode = m; } catch (_) { /* yoksay */ }
 
@@ -166,8 +167,10 @@ function cSign(text, bg, fg, w = 256, h = 96, sub) {
   g.fillStyle = bg; g.fillRect(0, 0, w, h);
   g.strokeStyle = fg; g.lineWidth = 6; g.strokeRect(6, 6, w - 12, h - 12);
   g.fillStyle = fg; g.textAlign = 'center'; g.textBaseline = 'middle';
-  g.font = '800 ' + (sub ? 34 : 40) + 'px sans-serif'; g.fillText(text, w / 2, sub ? h * 0.38 : h / 2);
-  if (sub) { g.font = '600 22px sans-serif'; g.fillText(sub, w / 2, h * 0.74); }
+  // yazı çerçeveye sığana kadar küçülür (uzun başlıklar kesilmesin)
+  const maxW = w - 44, fit = (s, wt, px) => { for (; px > 10; px -= 2) { g.font = wt + ' ' + px + 'px sans-serif'; if (g.measureText(s).width <= maxW) break; } };
+  fit(text, 800, Math.round(sub ? h * 0.36 : h * 0.42)); g.fillText(text, w / 2, sub ? h * 0.38 : h / 2);
+  if (sub) { fit(sub, 600, Math.round(h * 0.23)); g.fillText(sub, w / 2, h * 0.74); }
   const tx = new THREE.CanvasTexture(cv2); tx.colorSpace = THREE.SRGBColorSpace; tx.anisotropy = 4;
   return tx;
 }
@@ -214,10 +217,11 @@ function cShop(b) {
   return g;
 }
 function cBoard(b) {
-  const P = [gB(0.12, 1.5, 0.12, '#6b4524', -0.5, 0.75, 0), gB(0.12, 1.5, 0.12, '#6b4524', 0.5, 0.75, 0), gB(1.3, 0.9, 0.08, '#b98a52', 0, 1.2, 0), gRoof(1.5, 0.35, 0.3, '#7a5230', 0, 1.65, 0, false)];
+  // direkler tabelanın dışında; yazı levhası 2:1 oranlı, üzerine oturur
+  const P = [gB(0.14, 1.8, 0.14, '#6b4524', -1.03, 0.9, 0), gB(0.14, 1.8, 0.14, '#6b4524', 1.03, 0.9, 0), gB(1.92, 1.0, 0.1, '#b98a52', 0, 1.3, 0), gRoof(2.4, 0.4, 0.42, '#7a5230', 0, 1.8, 0, false)];
   const g = new THREE.Group(), m = new THREE.Mesh(cMerge(P), cPropMat); m.castShadow = true; g.add(m);
-  const pl = cPlane(1.2, 0.74, cSign('ADA PANOSU', '#f6ecd0', '#5a3a1e', 256, 160, '⭐'));
-  pl.position.set(0, 1.2, 0.05); g.add(pl);
+  const pl = cPlane(1.78, 0.89, cSign('ADA PANOSU', '#f6ecd0', '#5a3a1e', 512, 256, '⭐'));
+  pl.position.set(0, 1.3, 0.056); g.add(pl);
   return g;
 }
 function cCraft(b) {
@@ -271,12 +275,17 @@ function cSyncVillagers() {
 }
 function cPosePlayer(t, dt) {
   const v = cPlayerV; if (!v) return;
-  const p = cozy.p, a = p.act, w = t * (6 + p.speed * 1.5), s9 = Math.sin(t * 9);
+  const p = cozy.p, a = p.act, s9 = Math.sin(t * 9);
+  // yürüme fazı birikimli, hız yumuşatılmış: fare ile dönerken / çapraz giderken hız dalgalansa da bacaklar başa sıçramaz
+  cv.as += (p.speed - cv.as) * Math.min(1, dt * 9);
+  if (!cv.mv && cv.as > 0.55) cv.mv = true; else if (cv.mv && cv.as < 0.3) cv.mv = false;
+  cv.wph = (cv.wph + Math.min(dt, 0.1) * (6 + Math.min(cv.as, 6) * 1.5)) % 628.3185;
+  const w = cv.wph, moving = cv.mv;
   let lL = 0, lR = 0, aL = 0, aR = 0, lean = 0, hy = 0, bob = 0, tool = Z_TOOLS[p.tool].m;
   if (p.held) tool = 'basket';
-  if (p.moving) { const k = Math.min(1, p.speed / 3.3); lL = Math.sin(w) * 0.8 * k; lR = -lL; aL = lR * 0.8; aR = lL * 0.8; bob = Math.abs(Math.sin(w)) * 0.045 * k; if (tool) aR *= 0.4; }
+  if (moving) { const k = Math.min(1, cv.as / 3.3); lL = Math.sin(w) * 0.8 * k; lR = -lL; aL = lR * 0.8; aR = lL * 0.8; bob = Math.abs(Math.sin(w)) * 0.045 * k; if (tool) aR *= 0.4; }
   else { aL = Math.sin(t * 1.6) * 0.05; aR = -aL; }
-  if (tool && !p.moving) aR = -0.35;
+  if (tool && !moving) aR = -0.35;
   if (a) {
     switch (a.type) {
       case 'chop': aR = -1.5 + s9 * 0.9; aL = -0.5; lean = 0.2; break;

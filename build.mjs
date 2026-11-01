@@ -174,7 +174,10 @@ body.inmenu #czhud,body.inmenu #clabels,body.inmenu #cfloat,body.inmenu #czm{dis
 body.cmode #stats,body.cmode #dock,body.cmode #camBtns,body.cmode #brush,body.cmode #bSpeed,body.cmode #dbar,body.cmode #dppl{display:none!important}
 #czhud{position:fixed;inset:0;pointer-events:none;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
 #czhud>*{pointer-events:auto}
-#czstats{position:absolute;top:10px;left:10px;display:flex;gap:10px;align-items:center;padding:7px 12px;border-radius:14px;font-size:13px;font-weight:700;white-space:nowrap;max-width:calc(100% - 196px);overflow:hidden}
+#czleft{position:absolute;top:10px;left:10px;display:flex;flex-direction:column;align-items:flex-start;gap:6px;max-width:calc(100% - 196px)}
+#czstats{display:flex;gap:10px;align-items:center;padding:7px 12px;border-radius:14px;font-size:13px;font-weight:700;white-space:nowrap;max-width:100%;overflow:hidden}
+#czfps{display:none;padding:3px 10px;border-radius:10px;font-size:11px;font-weight:600;background:rgba(10,14,28,.6);color:#dfe6fa;white-space:nowrap}
+body.showfps #fps,body.showfps #czfps{display:inline-block}
 #czcam{position:absolute;right:10px;top:60px;display:flex;flex-direction:column;gap:6px}
 #czbar{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(10px + env(safe-area-inset-bottom));display:flex;gap:6px;padding:7px;border-radius:19px}
 .czt{position:relative;flex:0 0 auto;width:50px;height:50px;border-radius:14px;border:0;background:rgba(255,255,255,.09);color:#fff;font-size:24px;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0}
@@ -195,7 +198,14 @@ body.cmode #stats,body.cmode #dock,body.cmode #camBtns,body.cmode #brush,body.cm
   #czact{bottom:calc(86px + env(safe-area-inset-bottom));width:78px;height:78px;font-size:32px}
   #czprompt{bottom:calc(76px + env(safe-area-inset-bottom))}
 }
-@media (max-width:480px){.czt{width:42px;height:42px;font-size:21px}#czbar{gap:4px;padding:6px}#czstats{font-size:12px;gap:2px 8px;padding:6px 9px;flex-wrap:wrap;width:max-content;max-width:calc(100% - 158px)}}
+@media (max-width:480px){.czt{width:42px;height:42px;font-size:21px}#czbar{gap:4px;padding:6px}#czleft{max-width:calc(100% - 158px)}#czstats{font-size:12px;gap:2px 8px;padding:6px 9px;flex-wrap:wrap;width:max-content}}
+/* ---- tooltip (fare imleci üstüne gelince) ---- */
+#tip{position:fixed;left:0;top:0;z-index:60;max-width:min(260px,calc(100vw - 16px));padding:8px 12px 9px;border-radius:12px;background:rgba(14,19,38,.96);border:1px solid rgba(255,255,255,.2);box-shadow:0 8px 24px rgba(0,0,0,.5);color:#eaf0ff;font-size:12.5px;line-height:1.4;font-weight:500;pointer-events:none;opacity:0;transform:translateY(4px);transition:opacity .12s,transform .12s}
+#tip.on{opacity:1;transform:none}
+#tip b{display:block;font-size:13px;font-weight:800;color:#ffd27a}
+#tip span{display:block;margin-top:2px;color:#cfd8f4;white-space:pre-line}
+#tip kbd{display:inline-block;margin-top:5px;padding:1px 7px;border-radius:6px;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.22);font-family:inherit;font-size:11px;font-weight:700;color:#fff}
+@media (hover:none){#tip{display:none}}
 #clabels,#cfloat{position:fixed;inset:0;pointer-events:none;overflow:hidden;z-index:2}
 #cfloat{z-index:3}
 .cfl{position:absolute;transform:translate(-50%,0);font-weight:800;font-size:15px;text-shadow:0 2px 5px #000;white-space:nowrap;animation:cflup 1.5s ease-out forwards}
@@ -256,17 +266,17 @@ const html = `<!DOCTYPE html>
   <div id="stats" class="glass"><span id="pop">👥 0</span><span id="houses">🏠 0</span><span id="clock">☀️ 08:00 · Gün 1</span><span id="rainBadge">🌧️</span><span id="fps"></span></div>
   <div id="dbar" class="glass"></div><div id="dppl" class="glass"></div>
   <div id="dpanel" class="glass" hidden></div><div id="dbpanel" class="glass" hidden></div>
-  <div id="topbtns"><button class="rb glass" id="bPause">⏸</button><button class="rb glass" id="bSpeed" style="font-size:13px;font-weight:700">1×</button><button class="rb glass" id="bSave" title="Kayıtlar">💾</button><button class="rb glass" id="bSet">⚙️</button></div>
-  <div id="camBtns"><button class="rb glass" id="bRotL">⟲</button><button class="rb glass" id="bRotR">⟳</button><button class="rb glass" id="bTilt">⤢</button></div>
+  <div id="topbtns"><button class="rb glass" id="bPause" data-tip="Duraklat / Devam|Oyunu durdurur ya da kaldığı yerden sürdürür.|P">⏸</button><button class="rb glass" id="bSpeed" style="font-size:13px;font-weight:700" data-tip="Oyun hızı|Zamanı 1×, 2× ve 4× hızlandırır.">1×</button><button class="rb glass" id="bSave" data-tip="Kayıtlar|Oyunu kaydet, kayıt yükle, dosyaya aktar ya da dosyadan içe aktar.">💾</button><button class="rb glass" id="bSet" data-tip="Ayarlar|Grafik kalitesi, FPS göstergesi, gün/gece hızı ve diğer seçenekler.">⚙️</button></div>
+  <div id="camBtns"><button class="rb glass" id="bRotL" data-tip="Kamerayı sola çevir|Haritayı sola döndürür.|Q">⟲</button><button class="rb glass" id="bRotR" data-tip="Kamerayı sağa çevir|Haritayı sağa döndürür.|E">⟳</button><button class="rb glass" id="bTilt" data-tip="Kamera eğimi|Kamerayı yukarıdan bakıştan yatay bakışa doğru çevirir.|R / F">⤢</button></div>
   <div id="brush" class="glass"><span>Fırça</span><input id="size" type="range" min="1" max="10" value="4"><span id="sizev">4</span></div>
   <div id="dock" class="glass"><div id="tabs"></div><div id="tools"></div></div>
 </div>
 <div id="czhud">
-  <div id="czstats" class="glass"></div>
-  <div id="czcam"><button class="rb glass" id="czCamB" title="Kamera (C)">🎥</button><button class="rb glass" id="czRotL" title="Döndür (Q)">⟲</button><button class="rb glass" id="czRotR" title="Döndür (R)">⟳</button><button class="rb glass" id="czBagB" title="Çanta (B)">🎒</button><button class="rb glass" id="czCatB" title="Rehber (V)">📖</button></div>
+  <div id="czleft"><div id="czstats" class="glass"></div><div id="czfps"></div></div>
+  <div id="czcam"><button class="rb glass" id="czCamB" data-tip="Kamera|Kamera modunu değiştirir: üçüncü şahıs, birinci şahıs, izometrik.|C">🎥</button><button class="rb glass" id="czRotL" data-tip="Kamerayı sola çevir|Kamerayı karakterin etrafında sola döndürür.|Q">⟲</button><button class="rb glass" id="czRotR" data-tip="Kamerayı sağa çevir|Kamerayı karakterin etrafında sağa döndürür.|R">⟳</button><button class="rb glass" id="czBagB" data-tip="Çanta|Topladığın eşyalar; yiyebilir, eline alabilir, yerleştirebilirsin.|B">🎒</button><button class="rb glass" id="czCatB" data-tip="Rehber|Yakaladığın balık, böcek ve fosillerin kataloğu.|V">📖</button></div>
   <div id="czprompt"></div>
   <div id="czbar" class="glass"></div>
-  <button id="czact" class="glass dim" title="Eylem (Boşluk / E)">✋</button>
+  <button id="czact" class="glass dim" data-tip="Eylem|Seçili aracınla imlecin gösterdiği işi yapar: konuş, topla, kaz, balık tut…|Boşluk / E">✋</button>
   <div id="czjoy"><i></i></div>
 </div>
 <div id="czm" class="modal" hidden><div class="mbox glass"></div></div>

@@ -154,7 +154,7 @@ export class Cozy {
     this.builds = [
       b('home', 'home', -13, -9, 2.0, 1.7, { wall: '#f1e3c6', roof: '#d8574b' }),
       b('shop', 'shop', 11, -7, 2.6, 2.0, { wall: '#9fd4c4', roof: '#e8b13c' }),
-      b('board', 'board', 0, 1, 0.5, 0.2, { door: { x: 0, z: 2.2 } }),
+      b('board', 'board', 0, 1, 1.1, 0.25, { door: { x: 0, z: 2.2 } }),
       b('craft', 'craft', 5, 3.5, 0.9, 0.5, { door: { x: 5, z: 5 } }),
       b('vhome', 'v0', -28, 4, 1.6, 1.5, { vi: 0, wall: '#f4d6e0', roof: '#7a5ac7' }),
       b('vhome', 'v1', 24, 9, 1.6, 1.5, { vi: 1, wall: '#d6e8f4', roof: '#3f8a5a' }),
@@ -904,7 +904,8 @@ export class Cozy {
       const step = Math.hypot(nx - p.x, nz - p.z) + 1e-6;
       if (!this.blocked(nx, p.z) && (W.getHeight(nx, p.z) - h0) / step < 1.3) p.x = nx; else p.vx = 0;
       if (!this.blocked(p.x, nz) && (W.getHeight(p.x, nz) - h0) / step < 1.3) p.z = nz; else p.vz = 0;
-      if (!this.lockAng && sp2 > 0.3) p.ang = zang(p.ang, Math.atan2(p.vx, p.vz), Math.min(1, dt * 14));
+      // yön: istenen yürüyüş yönü (duvara sürtünürken bir eksen sıfırlansa da dönmesin)
+      if (!this.lockAng && sp2 > 0.3) p.ang = zang(p.ang, (tx || tz) ? Math.atan2(tx, tz) : Math.atan2(p.vx, p.vz), Math.min(1, dt * 14));
       if (this.path.length && sp2 < 0.2 && mag > 0.05) { p.stuck += dt; if (p.stuck > 0.7) { this.path = []; p.stuck = 0; } } else p.stuck = 0;
     }
     p.moving = sp2 > 0.3; p.speed = sp2;

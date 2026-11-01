@@ -1171,6 +1171,13 @@ const TOOLS = [
   { id: 'bolt', i: '⚡', n: 'Yıldırım', c: 3 }, { id: 'meteor', i: '☄️', n: 'Meteor', c: 3 },
   { id: 'fire', i: '🔥', n: 'Ateş', c: 3, r: 1 }, { id: 'lava', i: '🌋', n: 'Lav', c: 3, r: 1 },
 ];
+const TOOL_TIPS = {
+  up: 'Araziyi yükseltir; basılı tutup sürükleyerek tepe ve dağ yaparsın.', down: 'Araziyi alçaltır; göl ve vadi açar.', flat: 'Araziyi ilk bastığın yüksekliğe düzler.',
+  grass: 'Zemini çimene çevirir; ağaçlar ve hayvanlar burada yaşar.', sand: 'Zemini kuma çevirir.', snow: 'Zemini kara çevirir.', rock: 'Zemini kayalık yapar.',
+  human: 'Tıkladığın yere bir insan bırakır.', village: 'Tıkladığın yere küçük bir köy kurar.', erase: 'Fırçanın altındaki insanları, ağaçları ve yapıları siler.',
+  forest: 'Fırçanın altına ağaç diker.', clear: 'Fırçanın altındaki ağaçları temizler.', rain: 'Yağmuru açar ya da kapatır.', time: 'Günü çeyrek gün ileri sarar.',
+  bolt: 'Tıkladığın yere yıldırım düşürür.', meteor: 'Tıkladığın yere meteor yağdırır.', fire: 'Fırçanın altında yangın çıkarır.', lava: 'Fırçanın altında lav akıtır.',
+};
 let tool = 'hand', cat = 0, brushSize = 4, flatH = 0, lastSpawn = 0;
 const toolsEl = $('tools'), tabsEl = $('tabs');
 function toast(msg) {
@@ -1180,7 +1187,7 @@ function toast(msg) {
 function buildDock() {
   tabsEl.innerHTML = '';
   const hand = document.createElement('button');
-  hand.className = 'tab hand' + (tool === 'hand' ? ' on' : ''); hand.textContent = '✋'; hand.title = 'Gezin';
+  hand.className = 'tab hand' + (tool === 'hand' ? ' on' : ''); hand.textContent = '✋'; hand.dataset.tip = 'Gezin|Araç seçili değilken dünyada gezinirsin: kamerayı sürükle, yakınlaştır.';
   hand.onclick = () => { tool = 'hand'; buildDock(); };
   tabsEl.appendChild(hand);
   const det = gameMode === 'detail';
@@ -1197,6 +1204,7 @@ function buildDock() {
     const locked = det && t.bld && D_BUILD[t.bld].tech && !colony.has(D_BUILD[t.bld].tech);
     b.className = 'tool' + (active ? ' on' : '') + (locked ? ' locked' : '');
     b.innerHTML = '<span>' + t.i + '</span>' + t.n + (det ? dToolBadge(t) : '');
+    if (TOOL_TIPS[t.id]) b.dataset.tip = t.n + '|' + TOOL_TIPS[t.id];
     b.onclick = () => {
       if (t.id === 'rain') { world.raining = !world.raining; toast(world.raining ? 'Yağmur başladı' : 'Yağmur durdu'); }
       else if (t.id === 'time') { tod = (tod + 0.25) % 1; toast('Zaman ileri sarıldı'); }
@@ -1339,6 +1347,41 @@ $('bRotR').onclick = () => { cam.dyaw -= 0.5; };
 $('bTilt').onclick = () => { cam.dpitch = cam.dpitch > 1.1 ? 0.62 : cam.dpitch > 0.8 ? 1.25 : 0.95; };
 $('bSet').onclick = () => { $('settings').hidden = !$('settings').hidden; };
 $('closeSet').onclick = () => { $('settings').hidden = true; };
+
+/* ---------------------------------------------------------------- tooltip (imleç üstüne gelince açıklama kutusu) */
+// Biçim: data-tip="Başlık|Açıklama|Kısayol". Eski `title` özellikleri üstüne gelince otomatik buna çevrilir.
+const tipEl = document.createElement('div'); tipEl.id = 'tip'; document.body.appendChild(tipEl);
+let tipFor = null, tipTimer = 0;
+function tipHide() { clearTimeout(tipTimer); tipTimer = 0; tipFor = null; tipEl.classList.remove('on'); }
+function tipShow(el) {
+  const [t, d, k] = el.dataset.tip.split('|');
+  tipEl.textContent = '';
+  const add = (tag, txt) => { const n = document.createElement(tag); n.textContent = txt; tipEl.appendChild(n); };
+  add('b', t); if (d) add('span', d); if (k) add('kbd', k);
+  const r = el.getBoundingClientRect(), tw = tipEl.offsetWidth, th = tipEl.offsetHeight, W = window.innerWidth, H = window.innerHeight;
+  let x = r.left + r.width / 2 - tw / 2, y = r.top - th - 10;   // önce üstüne, sığmazsa altına
+  if (y < 6) y = r.bottom + 10;
+  if (r.left > W - 80) { x = r.left - tw - 10; y = r.top + r.height / 2 - th / 2; }   // sağ kenardaki düğmelerde soluna (alttakileri örtmesin)
+  tipEl.style.left = Math.max(6, Math.min(W - tw - 6, x)) + 'px'; tipEl.style.top = Math.max(6, Math.min(H - th - 6, y)) + 'px';
+  tipFor = el; tipEl.classList.add('on');
+}
+document.addEventListener('pointerover', (e) => {
+  if (e.pointerType !== 'mouse') return;
+  const el = e.target.closest ? e.target.closest('[data-tip],[title]') : null;
+  if (el && el.getAttribute('title')) { el.dataset.tip = el.getAttribute('title'); el.removeAttribute('title'); }   // yerel ipucu yerine bizimki
+  if (!el || !el.dataset.tip) { tipHide(); return; }
+  if (el === tipFor) return;
+  const quick = tipEl.classList.contains('on');   // bir ipucu açıkken yan düğmeye geçince beklemeden
+  tipHide();
+  tipTimer = setTimeout(() => { if (el.isConnected) tipShow(el); }, quick ? 0 : 180);
+});
+document.addEventListener('pointerdown', tipHide, true);
+document.addEventListener('wheel', tipHide, { passive: true });
+document.addEventListener('keydown', tipHide, true);
+window.addEventListener('blur', tipHide);
+document.documentElement.addEventListener('pointerleave', tipHide);
+setInterval(() => { if (tipFor && (!tipFor.isConnected || tipFor.offsetParent === null && getComputedStyle(tipFor).position !== 'fixed')) tipHide(); }, 300);   // pencere yeniden çizilince eski ipucu kalmasın
+
 function setSeg(group, val, cb) {
   document.querySelectorAll('#' + group + ' button').forEach((b) => {
     b.classList.toggle('on', b.dataset.v === val);
@@ -1356,7 +1399,7 @@ document.querySelectorAll('[data-style]').forEach((b) => { b.onclick = () => set
 $('mLow').onchange = (e) => setStyle(!e.target.checked);
 document.querySelectorAll('[data-tilt]').forEach((b) => { b.onclick = () => { userTilt = b.dataset.tilt === 'on'; tiltTouched = true; applyLevel(); savePrefs(); }; });
 setSeg('segW', 'on', (v) => { world.war = v === 'on'; });
-setSeg('segF', 'off', (v) => { $('fps').style.display = v === 'on' ? 'inline' : 'none'; });
+setSeg('segF', 'off', (v) => { document.body.classList.toggle('showfps', v === 'on'); });   // hem Simülasyon hem Ada Modu göstergesi
 $('timeSpd').oninput = (e) => { timeSpeed = +e.target.value; $('timeSpdV').textContent = timeSpeed === 0 ? 'duruyor' : timeSpeed + '×'; };
 function newWorld() {
   if (gameMode === 'detail') detailNewWorld();
@@ -1513,18 +1556,18 @@ function renderSlots() {
     const add = (txt, cls, fn, off) => {
       const b = document.createElement('button'); b.textContent = txt; b.className = cls; b.disabled = !!off; b.onclick = fn; row.appendChild(b); return b;
     };
-    if (s.id !== 'auto') add('Kaydet', 'sv', () => { if (saveGame(s.id)) { toast('Kaydedildi: ' + s.name); renderSlots(); } }, inMenu);
+    if (s.id !== 'auto') add('Kaydet', 'sv', () => { if (saveGame(s.id)) { toast('Kaydedildi: ' + s.name); renderSlots(); } }, inMenu).dataset.tip = 'Kaydet|Oyunun şu anki halini bu yuvaya yazar.';
     add('Yükle', '', () => {
       if (!loadGame(s.id)) return;
       $('saves').hidden = true;
       if (inMenu) startGame(true);
       toast('Kayıt yüklendi: ' + s.name);
-    }, !m);
-    add('⬇', '', () => exportSave(s.id, s.name), !m).title = 'Dosyaya aktar (indir)';
+    }, !m).dataset.tip = 'Yükle|Bu yuvadaki kaydı açar.';
+    add('⬇', '', () => exportSave(s.id, s.name), !m).dataset.tip = 'Dosyaya aktar|Bu kaydı bilgisayarına .json dosyası olarak indirir; başka tarayıcıya taşıyabilirsin.';
     if (s.id !== 'auto') add(askImp === s.id ? 'Üstüne yaz?' : '⬆', askImp === s.id ? 'ask' : '', () => {
       if (m && askImp !== s.id) { askImp = s.id; clearTimeout(askH); askH = setTimeout(() => { askImp = null; renderSlots(); }, 3000); renderSlots(); return; }
       askImp = null; impTarget = s; saveFileIn.value = ''; saveFileIn.click();
-    }).title = 'Dosyadan içe aktar';
+    }).dataset.tip = 'Dosyadan içe aktar|Daha önce indirdiğin bir kayıt dosyasını bu yuvaya yükler.';
     add(askDel === s.id ? 'Emin misin?' : '🗑', askDel === s.id ? 'ask' : '', () => {
       if (askDel === s.id) {
         askDel = null;
@@ -1678,7 +1721,8 @@ function frame() {
   }
   if (accT > 1.5) {
     const avg = accT / frames, fps = frames / accT;
-    $('fps').textContent = Math.round(fps) + ' FPS · ' + world.treeCount + ' ağaç · k' + level;
+    const fpsTxt = Math.round(fps) + ' FPS · ' + world.treeCount + ' ağaç · k' + level;
+    $('fps').textContent = fpsTxt; $('czfps').textContent = fpsTxt;
     if (qualityMode === 'auto' && !paused && realT > 6) {
       if (avg > 0.024 && level > 0) {
         if (realT - lastUp < 9) levelCap = Math.min(levelCap, level - 1);
