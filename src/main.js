@@ -1461,6 +1461,43 @@ function loadGame(id) {
   lastAuto = Date.now();
   return true;
 }
+// Kayıtlar tarayıcıda, adres başına ayrı saklanır (localhost ≠ github.io ≠ telefon). Taşımak için dosyaya aktarılır.
+const SAVE_FILE_APP = 'minidunya-kayit';
+let askImp = null, impTarget = null;
+const saveFileIn = document.createElement('input');
+saveFileIn.type = 'file'; saveFileIn.accept = '.json,application/json'; saveFileIn.hidden = true;
+document.body.appendChild(saveFileIn);
+function exportSave(id, name) {
+  try {
+    const raw = localStorage.getItem(SLOT_PREFIX + id), meta = readMeta(id);
+    if (!raw || !meta) { toast('⚠️ Boş kayıt'); return; }
+    const a = document.createElement('a'), d = new Date(meta.ts), p = (n) => String(n).padStart(2, '0');
+    a.href = URL.createObjectURL(new Blob([JSON.stringify({ app: SAVE_FILE_APP, v: 1, meta, data: JSON.parse(raw) })], { type: 'application/json' }));
+    a.download = 'minidunya-' + (id === 'auto' ? 'oto' : 'slot' + id) + '-' + meta.mode + '-' + d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + '-' + p(d.getHours()) + p(d.getMinutes()) + '.json';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    toast('Kayıt dosyası indirildi: ' + name);
+  } catch (_) { toast('⚠️ Dışa aktarılamadı'); }
+}
+saveFileIn.onchange = async () => {
+  const f = saveFileIn.files && saveFileIn.files[0], tgt = impTarget;
+  impTarget = null;
+  if (!f || !tgt) return;
+  try {
+    if (f.size > 6e6) throw new Error('büyük');
+    const o = JSON.parse(await f.text()), d = o && o.data, m = (o && o.meta) || {}, num = (v, def) => (Number.isFinite(v) ? v : def);
+    const mode = d && (d.mode === 'cozy' || d.mode === 'detail') ? d.mode : 'sim';
+    const ok = o && o.app === SAVE_FILE_APP && d && d.v === 1 && d.world && d.world.v === 1 && typeof d.world.H === 'string' &&
+      (mode === 'cozy' ? d.cozy && typeof d.cozy === 'object' : mode === 'detail' ? d.colony && typeof d.colony === 'object' : true);
+    if (!ok) throw new Error('geçersiz');
+    const meta = { ts: num(m.ts, Date.now()), mode, pop: num(m.pop, 0), houses: num(m.houses, 0), day: num(m.day, 1) };
+    if (mode === 'cozy') meta.zil = num(m.zil, 0);
+    localStorage.setItem(SLOT_PREFIX + tgt.id, JSON.stringify(d));
+    localStorage.setItem(SLOT_PREFIX + tgt.id + '.meta', JSON.stringify(meta));
+    toast('İçe aktarıldı: ' + tgt.name + ' · Yükle’ye basabilirsin');
+  } catch (e) { toast(e && e.name === 'QuotaExceededError' ? '⚠️ Depolama dolu' : '⚠️ Geçersiz kayıt dosyası'); }
+  renderSlots();
+};
 function renderSlots() {
   const box = $('slots'); box.innerHTML = '';
   for (const s of SLOTS) {
@@ -1474,7 +1511,7 @@ function renderSlots() {
       new Date(m.ts).toLocaleString('tr-TR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : 'Boş';
     info.append(t, d); row.appendChild(info);
     const add = (txt, cls, fn, off) => {
-      const b = document.createElement('button'); b.textContent = txt; b.className = cls; b.disabled = !!off; b.onclick = fn; row.appendChild(b);
+      const b = document.createElement('button'); b.textContent = txt; b.className = cls; b.disabled = !!off; b.onclick = fn; row.appendChild(b); return b;
     };
     if (s.id !== 'auto') add('Kaydet', 'sv', () => { if (saveGame(s.id)) { toast('Kaydedildi: ' + s.name); renderSlots(); } }, inMenu);
     add('Yükle', '', () => {
@@ -1483,6 +1520,11 @@ function renderSlots() {
       if (inMenu) startGame(true);
       toast('Kayıt yüklendi: ' + s.name);
     }, !m);
+    add('⬇', '', () => exportSave(s.id, s.name), !m).title = 'Dosyaya aktar (indir)';
+    if (s.id !== 'auto') add(askImp === s.id ? 'Üstüne yaz?' : '⬆', askImp === s.id ? 'ask' : '', () => {
+      if (m && askImp !== s.id) { askImp = s.id; clearTimeout(askH); askH = setTimeout(() => { askImp = null; renderSlots(); }, 3000); renderSlots(); return; }
+      askImp = null; impTarget = s; saveFileIn.value = ''; saveFileIn.click();
+    }).title = 'Dosyadan içe aktar';
     add(askDel === s.id ? 'Emin misin?' : '🗑', askDel === s.id ? 'ask' : '', () => {
       if (askDel === s.id) {
         askDel = null;
@@ -1495,7 +1537,7 @@ function renderSlots() {
     box.appendChild(row);
   }
 }
-function openSaves() { askDel = null; renderSlots(); $('settings').hidden = true; $('saves').hidden = false; }
+function openSaves() { askDel = askImp = null; renderSlots(); $('settings').hidden = true; $('saves').hidden = false; }
 $('bSave').onclick = openSaves;
 $('mSaves').onclick = openSaves;
 $('closeSaves').onclick = () => { $('saves').hidden = true; };

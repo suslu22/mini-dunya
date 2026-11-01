@@ -85,8 +85,8 @@ body.inmenu #hud{display:none}
 #saves[hidden]{display:none}
 #spanel{width:min(94vw,440px);max-height:88vh;overflow:auto;border-radius:20px;padding:16px 18px;background:rgba(18,26,48,.96);border:1px solid rgba(255,255,255,.16)}
 #spanel h3{margin:0 0 12px;font-size:17px}
-.slot{display:flex;align-items:center;gap:6px;padding:10px;border-radius:14px;background:rgba(255,255,255,.07);margin-bottom:8px}
-.slot .si{flex:1;min-width:0}
+.slot{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:10px;border-radius:14px;background:rgba(255,255,255,.07);margin-bottom:8px}
+.slot .si{flex:1 1 150px;min-width:0}
 .slot b{display:block;font-size:14px}
 .slot small{display:block;font-size:11.5px;color:#9fb0dc;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .slot button{height:36px;min-width:38px;padding:0 10px;border:0;border-radius:10px;background:rgba(255,255,255,.12);color:#fff;font-size:13px;font-weight:700;cursor:pointer}
@@ -294,7 +294,7 @@ const html = `<!DOCTYPE html>
 <div id="saves" hidden><div id="spanel">
   <h3>💾 Kayıtlar</h3>
   <div id="slots"></div>
-  <div class="shint">Oyun her 5 dakikada bir kendiliğinden kaydedilir (Oto-kayıt). Kayıtlar bu tarayıcıda saklanır.</div>
+  <div class="shint">Oyun her 5 dakikada bir kendiliğinden kaydedilir (Oto-kayıt). Kayıtlar bu tarayıcıda ve bu adreste saklanır. Başka tarayıcıya, telefona ya da siteye taşımak için ⬇ ile dosyaya indir, orada ⬆ ile yükle.</div>
   <button class="big alt" id="closeSaves">Kapat</button>
 </div></div>
 <div id="tree" class="modal" hidden><div class="mbox glass">

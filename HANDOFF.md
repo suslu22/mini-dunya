@@ -111,3 +111,4 @@ Ana menüde artık **üç mod kartı**: Simülasyon Modu · Detaylı Mod · **�
 - Güncelleme akışı: `src/…` düzenle → `node build.mjs` + testler → `git add -A && git commit -m "…" && git push`.
 - Commit kimliği (yalnız bu depo): `suslu22` + GitHub noreply e-postası; gerçek e-posta herkese açık geçmişe girmesin diye.
 - Bilgisayarda iki GitHub hesabı var (`suslu22` etkin, `idkalem`); `gh auth status` ile bak, yanlış hesapla push'lama.
+- **Kayıt taşıma (dışa/içe aktarma):** kayıtlar `localStorage`'da adres başına ayrı olduğu için localhost ile github.io birbirinin kaydını görmez. Kayıtlar panelinde her slotta ⬇ (JSON dosyası indir: `{app:'minidunya-kayit', v:1, meta, data}`) ve ⬆ (dosyadan içe aktar; dolu slotta ikinci tıkla "Üstüne yaz?") var; Oto-kayıt yalnızca dışa aktarılır. Kod: `exportSave`/`saveFileIn.onchange` (main.js, kayıt sistemi bölümü). Dosya şekli doğrulanır, geçersizse slot değişmez. **Kayıt dosyalarını depoya koyma** (depo herkese açık).
