@@ -89,6 +89,35 @@ const C_KIND_PARTS = () => {
   K.f_fountain = [gC(0.95, 1.0, 0.32, '#aab0b8', 0, 0.16, 0, 20), gC(0.8, 0.8, 0.04, '#7fc8ff', 0, 0.32, 0, 20), gC(0.14, 0.2, 0.75, '#c8ccd2', 0, 0.55, 0, 10), gC(0.42, 0.2, 0.1, '#b8bec6', 0, 0.95, 0, 14), gC(0.34, 0.34, 0.02, '#7fc8ff', 0, 1.0, 0, 14), gS(0.09, '#d8f0ff', 0, 1.15, 0)];
   K.f_trophy = [gC(0.2, 0.24, 0.06, '#8a6a1c', 0, 0.03, 0, 14), gC(0.05, 0.07, 0.28, '#d9b032', 0, 0.2, 0, 8), gC(0.22, 0.1, 0.26, '#ffd34d', 0, 0.46, 0, 14), gC(0.24, 0.22, 0.03, '#fff0a0', 0, 0.6, 0, 14), gS(0.06, '#fff0a0', 0.27, 0.46, 0), gS(0.06, '#fff0a0', -0.27, 0.46, 0)];
   K.f_rug = [gB(1.0, 0.02, 1.0, '#c9503c', 0, 0.012, 0), gB(0.82, 0.022, 0.82, '#f1d9a0', 0, 0.014, 0), gB(0.6, 0.024, 0.6, '#3f8a8a', 0, 0.016, 0)];
+  // tarla: sürülmüş toprak (eğimde boşluk kalmasın diye kalın) ve ekinler
+  const tl = '#5b3d25', tw = '#3d2a1a';
+  const field = (c, r) => [gB(0.96, 0.4, 0.96, c, 0, -0.14, 0), ...[-0.3, 0, 0.3].map((x) => gB(0.09, 0.05, 0.86, r, x, 0.065, 0))];
+  K.till = field(tl, '#4b3220'); K.tillw = field(tw, '#2e2014');
+  const sp = [[-0.22, -0.22], [0.22, -0.22], [-0.22, 0.22], [0.22, 0.22]], on4 = (f) => sp.flatMap(([x, z]) => f(x, z));
+  K.cr0 = on4((x, z) => [gS(0.05, leaf2, x, 0.11, z, 1, 0.7, 1), gS(0.04, leaf, x + 0.04, 0.1, z + 0.02, 1, 0.7, 1)]);
+  K.cr1 = on4((x, z) => [gC(0.012, 0.014, 0.2, leaf, x, 0.16, z, 5), gS(0.07, leaf2, x + 0.04, 0.22, z, 1, 0.5, 0.7), gS(0.07, leaf, x - 0.04, 0.2, z, 1, 0.5, 0.7)]);
+  K.cp_wheat = on4((x, z) => [gC(0.01, 0.012, 0.62, '#d9b94a', x - 0.04, 0.37, z, 4), gS(0.035, '#e8c850', x - 0.04, 0.7, z, 0.8, 2.3, 0.8), gC(0.01, 0.012, 0.58, '#cfae44', x + 0.05, 0.35, z + 0.03, 4), gS(0.035, '#f0d060', x + 0.05, 0.66, z + 0.03, 0.8, 2.3, 0.8)]);
+  K.cp_carrot = on4((x, z) => [gK(0.08, 0.28, '#4fa23a', x, 0.22, z, 5), gS(0.05, '#ff8a2a', x, 0.1, z, 1, 0.6, 1)]);
+  K.cp_potato = on4((x, z) => [gS(0.12, '#4f9a35', x, 0.17, z, 1, 0.8, 1), gS(0.04, '#efe6ff', x + 0.05, 0.28, z), gS(0.035, '#efe6ff', x - 0.06, 0.26, z + 0.03)]);
+  K.cp_tomato = on4((x, z) => [gC(0.014, 0.016, 0.42, leaf, x, 0.27, z, 5), gS(0.1, leaf, x, 0.38, z, 1, 0.8, 1), gS(0.055, '#e23b3b', x + 0.08, 0.3, z + 0.03), gS(0.05, '#e23b3b', x - 0.07, 0.4, z - 0.04)]);
+  K.cp_corn = on4((x, z) => [gC(0.02, 0.025, 0.95, '#7bb23a', x, 0.54, z, 5), gK(0.09, 0.32, leaf, x, 0.88, z, 5, 0.5), gS(0.045, '#f0c93a', x + 0.05, 0.62, z, 1, 1.9, 1)]);
+  K.cp_pumpkin = [[-0.2, -0.18], [0.22, -0.14], [0, 0.24]].flatMap(([x, z]) => [gS(0.15, '#f08a1e', x, 0.19, z, 1, 0.8, 1), gC(0.02, 0.025, 0.08, '#4f7a2a', x, 0.35, z, 5), gS(0.08, leaf, x + 0.12, 0.12, z + 0.06, 1, 0.3, 1)]);
+  K.cp_strawberry = on4((x, z) => [gS(0.1, leaf, x, 0.13, z, 1, 0.6, 1), gS(0.04, '#e0243c', x + 0.06, 0.1, z + 0.05), gS(0.04, '#e0243c', x - 0.05, 0.1, z - 0.05), gS(0.025, '#ffffff', x, 0.22, z)]);
+  K.it_dirt = [gS(0.14, '#6b4a2e', 0, 0.09, 0, 1, 0.7, 1), gS(0.08, '#7d5a3a', 0.12, 0.06, 0.06)];
+  // süs mobilyalar
+  K.f_well = [gC(0.52, 0.55, 0.55, '#a9a49a', 0, 0.27, 0, 14), gC(0.4, 0.4, 0.02, '#2b5d8a', 0, 0.52, 0, 14), gB(0.09, 1.3, 0.09, wd2, -0.5, 0.95, 0), gB(0.09, 1.3, 0.09, wd2, 0.5, 0.95, 0), gB(1.1, 0.07, 0.07, wd2, 0, 1.45, 0),
+    gRoof(1.0, 0.5, 1.4, '#b25c44', 0, 1.55, 0, true), gC(0.012, 0.012, 0.45, '#d9c29a', 0, 1.2, 0, 4), gC(0.09, 0.07, 0.12, '#8a5a2a', 0, 0.95, 0, 8)];
+  K.f_scarecrow = [gC(0.035, 0.04, 1.6, wd2, 0, 0.8, 0, 6), gB(1.1, 0.06, 0.06, wd2, 0, 1.15, 0), gB(0.42, 0.55, 0.22, '#4a7fb8', 0, 1.0, 0), gS(0.15, '#e8c88a', 0, 1.55, 0), gC(0.24, 0.24, 0.03, '#c9a24a', 0, 1.66, 0, 10), gC(0.11, 0.13, 0.15, '#c9a24a', 0, 1.74, 0, 10),
+    gB(0.18, 0.4, 0.06, '#4a7fb8', -0.6, 1.0, 0), gB(0.18, 0.4, 0.06, '#4a7fb8', 0.6, 1.0, 0), gS(0.03, '#2a2018', -0.05, 1.57, 0.13), gS(0.03, '#2a2018', 0.05, 1.57, 0.13)];
+  K.f_mailbox = [gB(0.09, 0.85, 0.09, wd2, 0, 0.42, 0), gB(0.3, 0.24, 0.44, '#3b6fb8', 0, 0.97, 0), gC(0.15, 0.15, 0.44, '#3b6fb8', 0, 1.09, 0, 8), gB(0.035, 0.22, 0.035, '#e04a3a', 0.18, 1.06, 0.1), gB(0.1, 0.035, 0.035, '#e04a3a', 0.21, 1.16, 0.1)];
+  K.f_haybale = [gB(0.95, 0.58, 0.62, '#e0be5a', 0, 0.3, 0), gB(0.06, 0.6, 0.64, '#b8923a', -0.26, 0.3, 0), gB(0.06, 0.6, 0.64, '#b8923a', 0.26, 0.3, 0), gK(0.06, 0.2, '#f0d27a', 0.2, 0.68, 0.1, 5), gK(0.06, 0.18, '#f0d27a', -0.15, 0.66, -0.1, 5)];
+  K.f_barrel = [gC(0.27, 0.25, 0.66, '#8a5a2a', 0, 0.33, 0, 12), gC(0.28, 0.28, 0.05, '#4a4a52', 0, 0.15, 0, 12), gC(0.28, 0.28, 0.05, '#4a4a52', 0, 0.5, 0, 12), gC(0.23, 0.23, 0.02, '#a8743c', 0, 0.67, 0, 12)];
+  K.f_crate = [gB(0.7, 0.55, 0.7, '#b98a52', 0, 0.28, 0), gB(0.74, 0.07, 0.74, wd2, 0, 0.1, 0), gB(0.74, 0.07, 0.74, wd2, 0, 0.46, 0), gS(0.09, '#e23b3b', -0.12, 0.62, 0.05), gS(0.09, '#e8553a', 0.12, 0.62, -0.08), gS(0.09, '#ff9a1f', 0.05, 0.64, 0.14)];
+  K.f_arch = [gB(0.1, 2.1, 0.1, '#f1efe6', -0.6, 1.05, 0), gB(0.1, 2.1, 0.1, '#f1efe6', 0.6, 1.05, 0), gB(0.5, 0.1, 0.1, '#f1efe6', -0.4, 2.1, 0, -0.5), gB(0.5, 0.1, 0.1, '#f1efe6', 0.4, 2.1, 0, 0.5), gB(0.5, 0.1, 0.1, '#f1efe6', 0, 2.2, 0),
+    ...[0.35, 0.8, 1.25, 1.7, 2.1].flatMap((y, i) => [gS(0.09, i % 2 ? '#e84a6a' : '#ff7a9a', -0.6, y, 0.06), gS(0.09, i % 2 ? '#ff7a9a' : '#e84a6a', 0.6, y, -0.06), gS(0.06, leaf, -0.6, y + 0.15, -0.04), gS(0.06, leaf, 0.6, y + 0.12, 0.04)]), gS(0.1, '#e84a6a', 0, 2.25, 0.05)];
+  K.f_flowerbed = [gB(1.0, 0.18, 0.12, wd2, 0, 0.09, 0.44), gB(1.0, 0.18, 0.12, wd2, 0, 0.09, -0.44), gB(0.12, 0.18, 0.76, wd2, 0.44, 0.09, 0), gB(0.12, 0.18, 0.76, wd2, -0.44, 0.09, 0), gB(0.78, 0.14, 0.78, soil, 0, 0.07, 0),
+    ...[[-0.25, -0.2, '#ff6b8b'], [0.2, -0.25, '#ffd93b'], [0, 0.05, '#b58cff'], [-0.22, 0.25, '#ff9a3c'], [0.25, 0.22, '#ff6b8b'], [0.05, -0.3, '#ffffff']].flatMap(([x, z, c]) => [gC(0.012, 0.014, 0.28, leaf, x, 0.28, z, 5), gS(0.07, c, x, 0.44, z, 1, 0.6, 1), gS(0.035, '#ffcf3a', x, 0.46, z)])];
+  K.f_stepstone = [gC(0.34, 0.37, 0.07, '#b9b6ae', 0, 0.03, 0, 10), gC(0.2, 0.22, 0.075, '#c9c6be', 0.12, 0.034, 0.1, 8)];
   return K;
 };
 const cKinds = {};
@@ -105,13 +134,14 @@ const cKinds = {};
     m.castShadow = false; m.count = 0; m.visible = false; m.frustumCulled = false; cRoot.add(m); cKinds['fr_' + f] = m;
   }
 })();
-const C_ITEMKIND = { wood: 'it_wood', stone: 'it_stone', clay: 'it_clay', iron: 'it_iron', gold: 'it_gold', weed: 'weed', apple: 'it_apple', orange: 'it_orange', cherry: 'it_cherry', shell: 'it_shell', oyster: 'it_oyster' };
+const C_ITEMKIND = { wood: 'it_wood', stone: 'it_stone', clay: 'it_clay', iron: 'it_iron', gold: 'it_gold', weed: 'weed', apple: 'it_apple', orange: 'it_orange', cherry: 'it_cherry', shell: 'it_shell', oyster: 'it_oyster', dirt: 'it_dirt' };
 function cKindOf(o) {
   switch (o.t) {
     case 'weed': return 'weed';
     case 'flower': return o.stage >= 3 ? 'fb' + o.k : 'fs' + o.stage;
     case 'sap': return 'sap' + Math.min(2, o.stage);
     case 'hole': return 'hole';
+    case 'till': return o.wet ? 'tillw' : 'till';
     case 'rock': return 'rock';
     case 'stump': return 'stump';
     case 'fossil': return 'fossil';
@@ -119,6 +149,10 @@ function cKindOf(o) {
     case 'item': return C_ITEMKIND[o.id] || 'it_other';
     default: return null;
   }
+}
+function cCropKind(o) {
+  const C = Z_CROPS[o.crop];
+  return o.stage >= C.days ? 'cp_' + o.crop : o.stage * 2 >= C.days ? 'cr1' : 'cr0';
 }
 let cObjT = 0;
 function cSyncObjs(t, force) {
@@ -141,6 +175,10 @@ function cSyncObjs(t, force) {
     y += world.getHeight(x, z) - 0.02;
     m4.compose(pv.set(x, y, z), q.setFromEuler(e.set(0, rot, 0)), sv.set(s, s, s));
     mesh.setMatrixAt(i, m4); cnt[kind] = i + 1;
+    if (o.t === 'till' && o.crop) {
+      const ck = cCropKind(o), cm = cKinds[ck], j = cnt[ck];
+      if (cm && j < cm.instanceMatrix.count) { m4.compose(pv.set(x, y, z), q.identity(), sv.set(1, 1, 1)); cm.setMatrixAt(j, m4); cnt[ck] = j + 1; }
+    }
   }
   // meyveler
   const fruitMesh = (f) => cKinds['fr_' + f];
@@ -233,11 +271,85 @@ function cCraft(b) {
   pl.position.set(0, 1.45, -0.4); g.add(pl);
   return g;
 }
+// atölyeler: inşaat sahası (şantiye) ve bitmiş bina bir arada; hangisinin görüneceğini cUpdateBuildVis seçer
+function cMachSite(b) {
+  const M = Z_MACH[b.m], hx = b.hx, hz = b.hz, wd = '#a8743c', wd2 = '#8a5a2a', P = [];
+  P.push(gB(hx * 2 + 0.4, 0.5, hz * 2 + 0.4, '#a7a29a', 0, -0.2, 0));
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) P.push(gB(0.1, 1.5, 0.1, wd2, sx * (hx - 0.1), 0.85, sz * (hz - 0.1)));
+  P.push(gB(hx * 2 - 0.2, 0.08, 0.08, wd, 0, 1.45, hz - 0.1), gB(hx * 2 - 0.2, 0.08, 0.08, wd, 0, 1.45, -hz + 0.1), gB(0.08, 0.08, hz * 2 - 0.2, wd, hx - 0.1, 1.05, 0), gB(0.08, 0.08, hz * 2 - 0.2, wd, -hx + 0.1, 1.05, 0));
+  P.push(gB(0.9, 0.3, 0.5, '#c4a070', -hx * 0.4, 0.15, -hz * 0.25), gB(0.8, 0.26, 0.45, '#b98a52', -hx * 0.4, 0.43, -hz * 0.25, 0.2), gB(0.7, 0.3, 0.5, '#8f8c86', hx * 0.35, 0.15, -hz * 0.15));
+  P.push(gK(0.14, 0.4, '#ff7a1a', hx - 0.2, 0.2, hz + 0.55, 8), gB(0.3, 0.04, 0.3, '#33353d', hx - 0.2, 0.02, hz + 0.55));
+  const g = new THREE.Group(), m = new THREE.Mesh(cMerge(P), cPropMat); m.castShadow = true; m.receiveShadow = true; g.add(m);
+  const sg = cPlane(1.9, 0.7, cSign('ŞANTİYE', '#f2c230', '#3a2a10', 256, 96, M.n)); sg.position.set(0, 1.1, hz - 0.02); g.add(sg);
+  return g;
+}
+function cMachBuilt(b) {
+  const id = b.m, hx = b.hx, hz = b.hz, wd = '#a8743c', wd2 = '#8a5a2a', P = [];
+  const base = () => gB(hx * 2 + 0.2, 0.7, hz * 2 + 0.2, '#8f8c86', 0, -0.25, 0);
+  const wrap = (P2, name, sub, bg, fg, y) => {
+    const g = new THREE.Group(), m = new THREE.Mesh(cMerge(P2), cPropMat); m.castShadow = true; m.receiveShadow = true; g.add(m);
+    const sg = cPlane(1.7, 0.6, cSign(name, bg, fg, 256, 96, sub)); sg.position.set(0, y, hz + 0.06); g.add(sg);
+    return g;
+  };
+  if (id === 'saw') {
+    P.push(base(), gB(hx * 2, 2.0, 0.12, wd, 0, 1.05, -hz + 0.1));
+    for (const sx of [-1, 1]) P.push(gB(0.14, 2.1, 0.14, wd2, sx * (hx - 0.1), 1.1, hz - 0.15), gB(0.14, 2.1, 0.14, wd2, sx * (hx - 0.1), 1.1, -hz + 0.1));
+    P.push(gRoof(hz * 2 + 0.8, 0.8, hx * 2 + 0.6, '#7a5230', 0, 2.1, 0, true));
+    P.push(gB(1.5, 0.12, 0.6, '#b07f45', -0.1, 0.82, 0.25), gB(0.1, 0.5, 0.1, wd2, -0.7, 0.55, 0.25), gB(0.1, 0.5, 0.1, wd2, 0.5, 0.55, 0.25));
+    P.push(gB(0.2, 0.2, 1.0, '#8b5a2b', hx - 0.45, 0.12, -0.3), gB(0.2, 0.2, 1.0, '#9a6a36', hx - 0.7, 0.12, -0.3), gB(0.2, 0.2, 1.0, '#8b5a2b', hx - 0.57, 0.32, -0.3), gB(0.9, 0.3, 0.4, '#d9b27a', -hx + 0.7, 0.15, -hz + 0.5));
+    const g = wrap(P, 'HIZAR', 'Kereste', '#7a5230', '#ffe8a3', 2.45);
+    const blade = new THREE.Mesh(cMerge([gC(0.3, 0.3, 0.03, '#cdd2da', 0, 0, 0, 18), gC(0.06, 0.06, 0.06, '#6b7078', 0, 0, 0, 8), gB(0.54, 0.034, 0.05, '#9aa0a8', 0, 0, 0), gB(0.05, 0.034, 0.54, '#9aa0a8', 0, 0, 0)]), cPropMat);
+    blade.position.set(-0.1, 1.08, 0.25); blade.rotation.x = Math.PI / 2; g.add(blade); g.userData.saw = blade;
+    return g;
+  }
+  if (id === 'kiln') {
+    P.push(base(), gB(hx * 2, 0.9, hz * 2, '#9a4a35', 0, 0.55, 0), gS(1.2, '#a8472f', 0, 1.0, 0, 1, 0.8, 1), gB(0.8, 0.65, 0.15, '#2a1e18', 0, 0.7, hz + 0.02), gB(0.95, 0.12, 0.2, '#8f8c86', 0, 1.08, hz));
+    P.push(gC(0.2, 0.26, 1.6, '#8a4a36', 0.6, 2.3, -0.5, 8), gC(0.3, 0.3, 0.08, '#6b7078', 0.6, 3.1, -0.5, 8));
+    P.push(gB(0.5, 0.3, 0.3, '#c4633f', -hx + 0.4, 0.15, hz + 0.6), gB(0.5, 0.3, 0.3, '#b5573a', -hx + 0.4, 0.45, hz + 0.6), gB(0.5, 0.3, 0.3, '#c4633f', hx - 0.4, 0.15, hz + 0.6));
+    const g = wrap(P, 'TUĞLA OCAĞI', '', '#8a3a24', '#ffe8a3', 1.7);
+    const glow = new THREE.Mesh(new THREE.PlaneGeometry(0.62, 0.46), new THREE.MeshBasicMaterial({ color: 0xff8a2a }));
+    glow.position.set(0, 0.7, hz + 0.12); glow.visible = false; g.add(glow); g.userData.glow = glow;
+    return g;
+  }
+  if (id === 'mill') {
+    P.push(base(), gC(0.95, 1.2, 2.7, '#e6dcc6', 0, 1.4, 0, 14), gC(1.3, 1.3, 0.12, '#8a5a2a', 0, 2.78, 0, 14), gK(1.3, 1.1, '#a8472f', 0, 3.4, 0, 14), gB(0.75, 1.3, 0.12, '#6b4524', 0, 0.8, 1.12), gB(0.4, 0.45, 0.1, '#7fb8e8', 0.55, 1.8, 0.95, 0.5));
+    const g = new THREE.Group(), m = new THREE.Mesh(cMerge(P), cPropMat); m.castShadow = true; m.receiveShadow = true; g.add(m);
+    const bl = new THREE.Group(); bl.position.set(0, 2.45, 1.08);
+    for (let i = 0; i < 4; i++) { const arm = new THREE.Mesh(cMerge([gB(0.1, 1.9, 0.06, wd2, 0, 1.0, 0), gB(0.42, 1.2, 0.03, '#f6f0e0', 0.25, 1.2, 0.03)]), cPropMat); arm.rotation.z = i * Math.PI / 2; bl.add(arm); }
+    bl.add(new THREE.Mesh(cMerge([gS(0.14, '#6b4524', 0, 0, 0.03)]), cPropMat));
+    g.add(bl); g.userData.blades = bl;
+    const sg = cPlane(1.3, 0.46, cSign('DEĞİRMEN', '#6b4a2e', '#ffe8a3', 256, 96)); sg.position.set(0, 1.85, 1.2); sg.rotation.x = -0.12; g.add(sg);
+    return g;
+  }
+  const g = cCottage(Object.assign({}, b, { wall: '#f0d9b0', roof: '#a8472f' }), true);   // fırın
+  const sg = cPlane(1.3, 0.45, cSign('FIRIN', '#7a3b1c', '#ffe8a3', 256, 96, 'Taze ekmek')); sg.position.set(-hx * 0.45, 2.05, hz + 0.07); g.add(sg);
+  return g;
+}
+function cMach(b) {
+  const g = new THREE.Group(), site = cMachSite(b), done = cMachBuilt(b);
+  g.add(site, done); g.userData = { site, done };
+  return g;
+}
+function cAnimMachs(t, dt) {
+  for (const b of cozy.builds) {
+    if (b.t !== 'mach' || !cozy.machBuilt(b.m)) continue;
+    const g = cBuildViews.get(b.id), d = g && g.userData.done && g.userData.done.userData; if (!d) continue;
+    const work = cozy.machWorking(b.m);
+    if (d.blades) d.blades.rotation.z -= dt * (work ? 1.6 : 0.45);
+    if (d.saw) d.saw.rotation.y += dt * (work ? 22 : 0);
+    if (d.glow) d.glow.visible = work;
+  }
+}
+function cTapBuild(b) {
+  if (czBlocked()) return;
+  cv.pend = { x: b.door.x, z: b.door.z, then: 'door' };
+  if (!cozy.walkTo(b.door.x, b.door.z + 0.1, true)) { cv.pend = null; toast('Oraya gidilemiyor'); }
+}
 function cBuildStatic() {
   for (const g of cBuildViews.values()) cStatic.remove(g);
   cBuildViews.clear();
   for (const b of cozy.builds) {
-    const g = b.t === 'shop' ? cShop(b) : b.t === 'board' ? cBoard(b) : b.t === 'craft' ? cCraft(b) : cCottage(b, b.t === 'home');
+    const g = b.t === 'shop' ? cShop(b) : b.t === 'board' ? cBoard(b) : b.t === 'craft' ? cCraft(b) : b.t === 'mach' ? cMach(b) : cCottage(b, b.t === 'home');
     g.position.set(b.x, b.y, b.z);
     cStatic.add(g); cBuildViews.set(b.id, g);
   }
@@ -252,6 +364,7 @@ function cUpdateBuildVis() {
   for (const b of cozy.builds) {
     const g = cBuildViews.get(b.id); if (!g) continue;
     g.visible = b.t !== 'vhome' || cozy.vill.some((v) => v.home === b.id);
+    if (b.t === 'mach') { const on = cozy.machBuilt(b.m); g.userData.site.visible = !on; g.userData.done.visible = on; }
   }
 }
 
@@ -267,7 +380,7 @@ function cRebuildPlayer() {
   cRoot.add(cPlayerV.root);
 }
 function cSyncVillagers() {
-  for (const v of cozy.vill) {
+  for (const v of cozy.folk()) {
     if (cVillViews.has(v.id)) continue;
     const view = buildHuman(cLookOf(v.look)); cRoot.add(view.root); cVillViews.set(v.id, view);
     const l = document.createElement('div'); l.className = 'dlabel'; l.textContent = v.name; cLabelRoot.appendChild(l); cLabels.set(v.id, l);
@@ -287,6 +400,7 @@ function cPosePlayer(t, dt) {
   if (moving) { const k = Math.min(1, cv.as / 3.3); lL = Math.sin(w) * 0.8 * k; lR = -lL; aL = lR * 0.8; aR = lL * 0.8; bob = Math.abs(Math.sin(w)) * 0.045 * k; if (tool) aR *= 0.4; }
   else { aL = Math.sin(t * 1.6) * 0.05; aR = -aL; }
   if (tool && !moving) aR = -0.35;
+  if (tool === 'lantern') aR = -0.9 + (moving ? Math.sin(w) * 0.05 : Math.sin(t * 1.3) * 0.02);
   if (a) {
     switch (a.type) {
       case 'chop': aR = -1.5 + s9 * 0.9; aL = -0.5; lean = 0.2; break;
@@ -312,7 +426,12 @@ function cPoseVillager(vl, v, t, dt) {
   if (vl.moving) { lL = Math.sin(w) * 0.7; lR = -lL; aL = lR * 0.7; aR = lL * 0.7; bob = Math.abs(Math.sin(w)) * 0.04; }
   else if (vl.talking) { aR = -0.7 + Math.sin(t * 3) * 0.5; aL = -0.2 + Math.sin(t * 2.3) * 0.3; hy = Math.sin(t * 2) * 0.15; }
   else if (near && !vl.inside) { aR = -2.6 + Math.sin(t * 6 + vl.phase) * 0.4; hy = Math.atan2(cozy.p.x - vl.x, cozy.p.z - vl.z) - vl.ang; hy = Math.max(-0.7, Math.min(0.7, Math.atan2(Math.sin(hy), Math.cos(hy)))); }
-  poseHuman(view, { lL, lR, aL, aR, lean: 0, hy, tool: '', t, ph: vl.phase, mood: 85 }, dt);
+  let lean = 0, tool = '';
+  if (vl.npc) {   // sabit karakterler elindeki işle meşgul; yaklaşınca el sallar
+    tool = vl.npc === 'rustem' ? 'hammer' : 'hoe';
+    if (!vl.talking && !near && !vl.inside) { aR = -1.2 + Math.sin(t * (vl.npc === 'rustem' ? 5 : 3.2) + vl.phase) * 0.6; aL = -0.2; lean = vl.npc === 'rustem' ? 0.12 : 0.4; }
+  }
+  poseHuman(view, { lL, lR, aL, aR, lean, hy, tool, t, ph: vl.phase, mood: 85 }, dt);
   view.root.position.set(vl.x, vl.y + bob, vl.z); view.root.rotation.y = vl.ang;
   view.root.visible = !vl.inside;
 }
@@ -353,6 +472,7 @@ const cLine = new THREE.Line(cLineGeo, new THREE.LineBasicMaterial({ color: 0xf2
 const cRing = new THREE.Mesh(new THREE.RingGeometry(0.2, 0.26, 20), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.6, side: THREE.DoubleSide, depthWrite: false }));
 cRing.rotation.x = -Math.PI / 2; cRing.visible = false; cRoot.add(cRing);
 let cRingT = 9;
+const cTipV = new THREE.Vector3();
 function cUpdateFishing(t, dt) {
   const f = cozy.p.fish;
   cBobber.visible = cLine.visible = !!f;
@@ -360,7 +480,10 @@ function cUpdateFishing(t, dt) {
   const dip = f.st === 'bite' ? -0.06 - Math.abs(Math.sin(t * 22)) * 0.08 : f.st === 'fight' ? -0.05 - Math.abs(Math.sin(t * 13)) * 0.09 : f.st === 'cast' ? Math.max(0, 0.9 - f.t * 2) : Math.sin(t * 2.1) * 0.015;
   const bx = f.x, bz = f.z, by = SEA + 0.02 + dip;
   cBobber.position.set(bx, by, bz);
-  const a = cozy.p, hx = a.x + Math.sin(a.ang) * 0.55, hz = a.z + Math.cos(a.ang) * 0.55, hy = a.y + 1.55;
+  // çizgi olta ucundan çıkar (poz verildikten sonra çalışır); uç bulunamazsa eski sabit noktaya düşer
+  const a = cozy.p; let hx = a.x + Math.sin(a.ang) * 0.55, hz = a.z + Math.cos(a.ang) * 0.55, hy = a.y + 1.55;
+  const tip = cPlayerV && cPlayerV.tools.rodTip;
+  if (tip) { cPlayerV.root.updateMatrixWorld(true); tip.getWorldPosition(cTipV); hx = cTipV.x; hy = cTipV.y; hz = cTipV.z; }
   const arr = cLineGeo.attributes.position.array; arr[0] = hx; arr[1] = hy; arr[2] = hz; arr[3] = bx; arr[4] = by; arr[5] = bz; cLineGeo.attributes.position.needsUpdate = true;
   cRing.position.set(bx, SEA + 0.03, bz);
   if (f.st === 'bite') cRingT = Math.min(cRingT, 0.0);
@@ -496,6 +619,8 @@ function cozyKey(e) {
   if (czModalOpen) {
     if ((k === 'b' || k === 'tab') && czKind === 'bag') { czCloseAll(); return true; }
     if (k === 'v' && czKind === 'cat') { czCloseAll(); return true; }
+    if (k === 'j' && czKind === 'quests') { czCloseAll(); return true; }
+    if (k === 'u' && czKind === 'stuck') { czCloseAll(); return true; }
     return false;
   }
   if (czBlocked()) return false;
@@ -503,7 +628,9 @@ function cozyKey(e) {
   if (czPhotoOn && (k === ' ' || k === 'enter')) { if (!e.repeat) czPhotoReq = true; return true; }
   if (k === 'p') { togglePause(); return true; }
   if (k === ' ' || k === 'e' || k === 'enter' || k === 'f') { if (!e.repeat) czPress(); return true; }
-  if (k >= '1' && k <= '6') { cozy.selectTool(+k - 1); czSyncUI(); return true; }
+  if (k >= '1' && k <= '8') { cozy.selectTool(+k - 1); czSyncUI(); return true; }
+  if (k === 'j') { czOpen('quests'); return true; }
+  if (k === 'u') { czOpen('stuck'); return true; }
   if (k === '0') { cozy.p.held = null; czSyncUI(); return true; }
   if (k === 'c') { cozyCycleMode(); return true; }
   if (k === 'q') { cozyRotate(1); return true; }
@@ -548,7 +675,7 @@ function cTapVillager(v) {
 function cozyTapIso(sx, sy) {
   // önce köylüler (ekran mesafesi)
   let bv = null, bd = 46;
-  for (const v of cozy.vill) {
+  for (const v of cozy.folk()) {
     if (v.inside) continue;
     cTmpV.set(v.x, v.y + 0.7, v.z).project(camera);
     const px = (cTmpV.x * 0.5 + 0.5) * window.innerWidth, py = (-cTmpV.y * 0.5 + 0.5) * window.innerHeight, d = Math.hypot(px - sx, py - sy);
@@ -602,6 +729,9 @@ function cozyEvents() {
       case 'newday': auSfx('bell', 0.7); cToastQ.push('☀️ Yeni bir gün başladı — Gün ' + cozy.day); czRefresh(); break;
       case 'arrive': czArrive(); break;
       case 'fight': auSfx('reel'); break;
+      case 'tele': world.fx('puff', e.x, gy + 0.3, e.z, 2); world.fx('heart', e.x, gy + 1.4, e.z, 1); break;
+      case 'ding': auSfx('bell', 0.5); break;
+      case 'build': { const b = cozy.builds.find((x) => x.m === e.id); if (b) { world.fx('puff', b.x, b.y + 0.6, b.z, 4); world.fx('dust', b.x, b.y + 0.2, b.z + b.hz, 3); } break; }
       case 'hook': auSfx(e.ok ? 'pop' : 'error', 0.7); cFloat(e.ok ? 'İyi! ✔' : 'Iska ✖', cozy.p.x, cozy.p.z, cozy.p.y + 0.9); break;
       case 'fanfare': auSfx('fanfare', 0.8); world.fx('heart', cozy.p.x, cozy.p.y + 1.6, cozy.p.z, 1); czRefresh(); break;
     }
@@ -618,6 +748,12 @@ function cozyAmbient(dt, t) {
     const a = Math.random() * 6.283, r = 1 + Math.random() * 5, x = 2 + Math.cos(a) * r, z = 3 + Math.sin(a) * r;
     world.fx(fest.id === 'kis' ? 'spark' : 'heart', x, world.getHeight(x, z) + 1.4 + Math.random() * 2, z, 1);
   }
+  for (const b of cozy.builds) {   // çalışan atölyelerden duman ve talaş
+    if (b.t !== 'mach' || !cozy.machWorking(b.m) || Math.hypot(b.x - cozy.p.x, b.z - cozy.p.z) > 40 || Math.random() > 0.55) continue;
+    if (b.m === 'kiln') world.fx('puff', b.x + 0.6, b.y + 3.2, b.z - 0.5, 1);
+    else if (b.m === 'bakery') world.fx('puff', b.x + b.hx * 0.55, b.y + 4.1, b.z - b.hz * 0.3, 1);
+    else if (b.m === 'saw') world.fx('dust', b.x - 0.1, b.y + 1.1, b.z + 0.3, 1);
+  }
   let n = 0;
   for (const [c, o] of cozy.obj) {
     if (o.t !== 'furn') continue;
@@ -632,7 +768,7 @@ function cozyAmbient(dt, t) {
 /* ---------------------------------------------------------------- etiketler */
 function cUpdateLabels() {
   const W = window.innerWidth, H = window.innerHeight;
-  for (const v of cozy.vill) {
+  for (const v of cozy.folk()) {
     const l = cLabels.get(v.id); if (!l) continue;
     const d = Math.hypot(v.x - cozy.p.x, v.z - cozy.p.z);
     if (v.inside || d > 28 || (cv.mode === 'fp' && d > 14)) { l.style.display = 'none'; continue; }
@@ -640,7 +776,21 @@ function cUpdateLabels() {
     if (cTmpV.z >= 1 || Math.abs(cTmpV.x) > 1.1 || Math.abs(cTmpV.y) > 1.1) { l.style.display = 'none'; continue; }
     l.style.display = '';
     const hearts = Math.min(4, Math.floor(v.friend / 25));
-    const html = (cozy.isBday(v) ? '🎂 ' : '') + (v.quest && !v.quest.done ? '❗ ' : '') + esc(v.name) + (hearts ? ' ' + '💗'.repeat(hearts) : '');
+    const html = (v.sayT > 0 && v.say ? '<em class="dsay">' + esc(v.say) + '</em>' : '') + (cozy.isBday(v) ? '🎂 ' : '') + (v.quest && !v.quest.done ? '❗ ' : '') + esc(v.name) + (v.role ? ' · ' + esc(v.role) : '') + (hearts ? ' ' + '💗'.repeat(hearts) : '');
+    if (l.dataset.h !== html) { l.innerHTML = html; l.dataset.h = html; }
+    l.style.transform = 'translate(' + ((cTmpV.x * 0.5 + 0.5) * W - l.offsetWidth / 2).toFixed(0) + 'px,' + ((-cTmpV.y * 0.5 + 0.5) * H - 22).toFixed(0) + 'px)';
+  }
+  for (const b of cozy.builds) {   // atölye etiketleri
+    if (b.t !== 'mach') continue;
+    let l = cLabels.get(b.id);
+    if (!l) { l = document.createElement('div'); l.className = 'dlabel'; cLabelRoot.appendChild(l); cLabels.set(b.id, l); l.onclick = () => cTapBuild(b); }
+    const d = Math.hypot(b.x - cozy.p.x, b.z - cozy.p.z);
+    if (d > 26 || (cv.mode === 'fp' && d > 14)) { l.style.display = 'none'; continue; }
+    cTmpV.set(b.x, b.y + 3.9, b.z).project(camera);
+    if (cTmpV.z >= 1 || Math.abs(cTmpV.x) > 1.1 || Math.abs(cTmpV.y) > 1.1) { l.style.display = 'none'; continue; }
+    l.style.display = '';
+    const M = Z_MACH[b.m], built = cozy.machBuilt(b.m), out = Object.values(cozy.mach[b.m].out).reduce((a, n) => a + n, 0);
+    const html = built ? M.i + ' ' + esc(M.n) + (out ? ' · ✅ ' + out : cozy.machWorking(b.m) ? ' · ⚙️' : '') : '🏗️ ' + esc(M.n) + ' şantiyesi';
     if (l.dataset.h !== html) { l.innerHTML = html; l.dataset.h = html; }
     l.style.transform = 'translate(' + ((cTmpV.x * 0.5 + 0.5) * W - l.offsetWidth / 2).toFixed(0) + 'px,' + ((-cTmpV.y * 0.5 + 0.5) * H - 22).toFixed(0) + 'px)';
   }
@@ -670,9 +820,10 @@ function cozyFrame(dt, t) {
   cSyncVillagers(); cUpdateBuildVis();
   if (!cPlayerV) cRebuildPlayer();
   cozyCamera(dt);
-  cSyncObjs(t); cSyncBugs(t); cUpdateFishing(t, dt);
-  cPosePlayer(t, dt);
-  for (const v of cozy.vill) cPoseVillager(v, null, t, dt);
+  cSyncObjs(t); cSyncBugs(t);
+  cPosePlayer(t, dt); cUpdateFishing(t, dt);
+  for (const v of cozy.folk()) cPoseVillager(v, null, t, dt);
+  cAnimMachs(t, dt);
   cUpdateLabels();
   cozyAmbient(dt, t);
   winMat.emissiveIntensity = nightK > 0.35 ? 1.5 : 0;

@@ -1833,6 +1833,7 @@ $('closeSaves').onclick = () => { $('saves').hidden = true; };
 const FL_N = 8, flLights = [];
 for (let i = 0; i < FL_N; i++) { const l = new THREE.PointLight(0xff9a45, 0, 26, 1.5); l.position.set(0, -50, 0); scene.add(l); flLights.push(l); }
 let flSrc = [], flT = 0;
+const lanternLight = new THREE.PointLight(0xffd49a, 0, 15, 1.5); lanternLight.position.set(0, -50, 0); scene.add(lanternLight);   // Ada Modu: eldeki fener
 function gatherLights() {
   const out = [], cx = cam.x, cz = cam.z;
   const add = (x, z, s, up) => { const d = Math.hypot(x - cx, z - cz); if (d < 100) out.push({ x, z, y: world.getHeight(x, z) + up, s, key: d / s }); };
@@ -1862,6 +1863,13 @@ function updateFireLights(dt, t) {
     if (s) { l.position.set(s.x, s.y, s.z); target = 60 * s.s * k * (1 + Math.sin(t * 13 + i * 3.1) * 0.09 + Math.sin(t * 31 + i) * 0.05); }
     l.intensity += (target - l.intensity) * Math.min(1, dt * 5);
   }
+  let lt = 0;
+  if (gameMode === 'cozy' && cozy.lanternOn()) {
+    const p = cozy.p;
+    lanternLight.position.set(p.x + Math.sin(p.ang) * 0.6, p.y + 1.7, p.z + Math.cos(p.ang) * 0.6);
+    lt = (8 + 26 * nightK) * (1 + Math.sin(t * 9) * 0.05 + Math.sin(t * 23) * 0.03);
+  }
+  lanternLight.intensity += (lt - lanternLight.intensity) * Math.min(1, dt * 6);
 }
 /* ---------------------------------------------------------------- ana döngü */
 applyStyle();

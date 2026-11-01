@@ -1,6 +1,7 @@
 // Mini Dünya - Ada Modu mantığı (render'dan bağımsız).
 // Adayı üretir; oyuncu, araçlar, balık/böcek/fosil, dükkân, yapım, köylüler ve ada puanı burada.
 import { N, HALF, SEA, SOIL, hash2 } from './sim.js';
+import { Z_CROPS, Z_MACH, Z_MACH_ORDER, Z_GOODS, Z_QUESTS, Z_STORY_AT, Z_STORY, Z_BARKS, Z_HINTS, Z_HINTS_NPC, Z_RUMORS, Z_NPCS, Z_FARM, Z_DECOR } from './ada_data.js';
 
 const zclamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const zsm = (a, b, x) => { const t = zclamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
@@ -23,7 +24,7 @@ function zfbm(x, y, s, o = 4) {
 }
 
 export const Z_ISLE = 50;
-export const Z_BAG_MAX = 30;
+export const Z_BAG_MAX = 40;
 export const Z_TOOLS = [
   { id: 'hand', n: 'Eller', i: '✋', m: '' },
   { id: 'axe', n: 'Balta', i: '🪓', m: 'axe' },
@@ -31,6 +32,8 @@ export const Z_TOOLS = [
   { id: 'rod', n: 'Olta', i: '🎣', m: 'rod' },
   { id: 'net', n: 'Böcek Ağı', i: '🥅', m: 'net' },
   { id: 'can', n: 'Sulama Kovası', i: '💧', m: 'can' },
+  { id: 'hoe', n: 'Çapa', i: '⚒️', m: 'hoe' },
+  { id: 'lantern', n: 'Fener', i: '🪔', m: 'lantern' },
 ];
 export const Z_FLOWERS = [
   { n: 'Lale', col: '#ff4f6d' }, { n: 'Papatya', col: '#ffffff' }, { n: 'Nergis', col: '#ffd93b' },
@@ -91,12 +94,24 @@ export const Z_FURN = {
   fountain: { n: 'Çeşme', i: '⛲', buy: 3200, r: 0.9 },
   rug: { n: 'Halı', i: '🟫', buy: 500, r: 0, flat: 1 },
   trophy: { n: 'Altın Kupa', i: '🏆', buy: 0, r: 0.3 },   // yalnızca ödül
+  well: { n: 'Kuyu', i: '🪣', buy: 1800, r: 0.85 },
+  scarecrow: { n: 'Korkuluk', i: '🧑‍🌾', buy: 700, r: 0.3 },
+  mailbox: { n: 'Posta Kutusu', i: '📮', buy: 350, r: 0.25 },
+  haybale: { n: 'Saman Balyası', i: '🟨', buy: 250, r: 0.55 },
+  barrel: { n: 'Fıçı', i: '🛢️', buy: 250, r: 0.4 },
+  crate: { n: 'Sandık', i: '📦', buy: 250, r: 0.42 },
+  arch: { n: 'Gül Kemeri', i: '🌹', buy: 1500, r: 0 },
+  flowerbed: { n: 'Çiçek Tarhı', i: '💐', buy: 600, r: 0 },
+  stepstone: { n: 'Basamak Taşı', i: '⚪', buy: 100, r: 0, flat: 1 },
 };
 export const Z_RECIPES = [
   { out: 'f_chair', need: { wood: 3 } }, { out: 'f_bench', need: { wood: 5 } }, { out: 'f_table', need: { wood: 6 } },
   { out: 'f_fence', n: 2, need: { wood: 2 } }, { out: 'f_campfire', need: { wood: 3, stone: 2 } }, { out: 'f_pot', need: { clay: 4 } },
   { out: 'f_lamp', need: { iron: 2, wood: 2 } }, { out: 'f_rug', need: { weed: 10 } }, { out: 'f_umbrella', need: { wood: 3, weed: 5 } },
   { out: 'f_fountain', need: { stone: 10, clay: 5 } },
+  { out: 'f_barrel', need: { plank: 3 } }, { out: 'f_crate', need: { plank: 4 } }, { out: 'f_mailbox', need: { plank: 2, iron: 1 } },
+  { out: 'f_scarecrow', need: { plank: 2, weed: 8 } }, { out: 'f_haybale', need: { weed: 15 } }, { out: 'f_arch', need: { plank: 6, weed: 8 } },
+  { out: 'f_flowerbed', need: { plank: 4, clay: 2 } }, { out: 'f_stepstone', n: 4, need: { stone: 3 } }, { out: 'f_well', need: { brick: 12, plank: 4 } },
 ];
 export const Z_ITEMS = {};
 const zit = (id, n, i, sell, ex) => { Z_ITEMS[id] = Object.assign({ id, n, i, sell }, ex); };
@@ -117,6 +132,13 @@ Z_BUGS.forEach((f) => zit('bug_' + f.id, f.n, f.i, f.sell, { cat: 'bug', fid: f.
 Z_FOSSILS.forEach((f, k) => zit('fos_' + k, f.n, f.i, f.sell, { cat: 'fos', fid: k }));
 for (const k of Object.keys(Z_FURN)) zit('f_' + k, Z_FURN[k].n, Z_FURN[k].i, Math.round(Z_FURN[k].buy / 4), { buy: Z_FURN[k].buy, furn: k });
 Z_ITEMS.f_trophy.sell = 2000;
+zit('dirt', 'Toprak', '🟤', 4, { land: 1 });
+for (const k of Object.keys(Z_CROPS)) {
+  const C = Z_CROPS[k];
+  zit('cs_' + k, C.n + ' Tohumu', '🌱', Math.round(C.seed / 3), { buy: C.seed, crop: k });
+  zit(k, C.n, C.i, C.sell, { harvest: 1, eat: ['tomato', 'carrot', 'strawberry'].includes(k) ? 1 : 0 });
+}
+for (const [id, n, i, sell] of Z_GOODS) zit(id, n, i, sell, { good: 1, eat: ['bread', 'pie', 'tart', 'pudding'].includes(id) ? 1 : 0 });
 
 const Z_VILL = [
   { name: 'Defne', bday: 0, female: true, pers: 'neşeli', fav: 'flower', look: { skin: '#f1c8a0', hair: '#6b3a1e', hs: 3, outfit: 2, shirt: '#ff8fb1', pants: '#4d5b8c', hat: 0 } },
@@ -131,6 +153,7 @@ const Z_TALK = {
   sevecen: ['Hoş geldin canım! Aç mısın? Bir şeyler hazırlayayım mı?', 'Adayı ne kadar güzelleştirdin, gurur duydum!', 'Bahçende yeni çiçekler gördüm, çok sevindim.'],
   huysuz: ['Hmph. Yine mi sen? Neyse… selam.', 'Şu böcekler beni deli ediyor. Hiçbir faydaları yok!', 'Çit yok, yol yok… Bu adaya biraz düzen lazım.'],
   maceracı: ['Dün kıyıda garip bir iz gördüm. Fosil olabilir, kürek al!', 'Haritada hâlâ keşfedilmemiş yerler var, hissediyorum.', 'Seninle ada turu atmaya ne dersin?'],
+  çalışkan: ['İş var, güç var! Konuşurken bile elim boş durmuyor.', 'Çalışmak insanı genç tutar derler, doğru mu bilmiyorum ama ben böyle severim.', 'Ada güzelleştikçe işimiz de artıyor, hiç şikâyetçi değilim!'],
 };
 export const Z_SHOP_OPEN = [7, 22];
 const zPoss = (n) => n + (/[aeıioöuü]$/i.test(n) ? '\'nin' : '\'in');
@@ -153,6 +176,7 @@ export const Z_MILE = [
 export const Z_WALLS = [['#f1e3c6', 'Krem'], ['#f4d6e0', 'Pembe'], ['#d6e8f4', 'Mavi'], ['#dcefd2', 'Yeşil'], ['#3b3f5c', 'Gece']];
 export const Z_FLOORS = [['#b98a5b', 'Ahşap'], ['#8d9aa3', 'Taş'], ['#e8d9b0', 'Hasır'], ['#5b4636', 'Koyu']];
 export const Z_HOME_SLOTS = 6;
+export const Z_LAND_COST = 3, Z_LAND_H = 1.5;   // bir kara hücresi için toprak parçası, yeni karanın yüksekliği
 
 export class Cozy {
   constructor(world) {
@@ -166,10 +190,12 @@ export class Cozy {
     this.seed = 1; this.day = 1; this.hour = 8; this.zil = 2000;
     this.name = 'Ada Sakini';
     this.look = Cozy.defaultLook();
-    this.p = { x: 0, z: 8, y: 0, ang: 0, vx: 0, vz: 0, tool: 0, held: null, moving: false, speed: 0, act: null, fish: null, stuck: 0 };
+    this.p = { x: 0, z: 8, y: 0, ang: 0, vx: 0, vz: 0, tool: 0, held: null, moving: false, speed: 0, act: null, fish: null, stuck: 0, lit: true, inT: 0 };
     this.bag = {}; this.obj = new Map(); this.trees = new Map(); this.bugs = []; this.vill = []; this.builds = [];
     this.seen = { fish: {}, bug: {}, fos: {} };
-    this.stats = { fish: 0, bugs: 0, fos: 0, trees: 0, planted: 0, earned: 0 };
+    this.stats = { fish: 0, bugs: 0, fos: 0, trees: 0, planted: 0, earned: 0, talks: 0, gifts: 0, harvest: 0, tilled: 0, land: 0, crafted: 0, built: 0 };
+    this.qdone = {}; this.npcs = []; this._qT = 0; this.mach = {};
+    for (const id of Z_MACH_ORDER) this.mach[id] = { built: false, q: [], out: {} };
     this.stock = []; this.rainDay = false; this.rainSpan = [0, 0]; this.rainNow = false; this.rainWet = false;
     this.season = 0; this.mile = {}; this.home = Cozy.defaultHome(); this.contest = null;
     this.reserved = new Set(); this.path = []; this.pathAct = false; this.stars = 1; this.score = 0; this._tick = 0; this._bugT = 0; this._sleepReq = false; this._id = 1;
@@ -201,6 +227,7 @@ export class Cozy {
       b('vhome', 'v3', -8, -26, 1.6, 1.5, { vi: 3, wall: '#e0d4c0', roof: '#3a5f9c' }),
       b('vhome', 'v4', -30, -18, 1.6, 1.5, { vi: 4, wall: '#cfeaf0', roof: '#d19b2a' }),
     ];
+    for (const id of Z_MACH_ORDER) { const M = Z_MACH[id]; this.builds.push(b('mach', 'm_' + id, M.pos[0], M.pos[1], M.hx, M.hz, { m: id })); }
     this.lampPosts = [[-3, 4], [6, 6], [-9, -4], [8, -2]];
   }
   _flatten(cx, cz, r1, r2, lv) {
@@ -252,6 +279,7 @@ export class Cozy {
       this._flatten(b.x, b.z, Math.max(b.hx, b.hz) + 2.4, Math.max(b.hx, b.hz) + 6, b.lv);
     }
     this._flatten(2, 2, 7, 12, 2.1);
+    this._flatten(Z_FARM.x, Z_FARM.z, 5, 9, zclamp(W.getHeight(Z_FARM.x, Z_FARM.z), 1.6, 3.0));
     for (const b of this.builds) b.y = W.getHeight(b.x, b.z);
     for (let c = 0; c < N * N; c++) { W.soil[c] = SOIL.GRASS; W.classify(c, W.cellH(c % N, (c / N) | 0)); }
     this._reserve(true);
@@ -296,6 +324,7 @@ export class Cozy {
     if (look) this.look = Object.assign(Cozy.defaultLook(), look);
     if (name) this.name = name;
     this.generate(this.seed);
+    this._addNpcs(); this._settle(true);
     const home = this.builds[0];
     this.p.x = home.door.x + 1.5; this.p.z = home.door.z + 3; this.p.ang = Math.PI; this.p.y = this.world.getHeight(this.p.x, this.p.z);
     // ilk köylüler
@@ -306,6 +335,7 @@ export class Cozy {
     this._restock();
     this._dailySpawns();
     this._rollWeather();
+    this.add('cs_wheat', 5); this.add('cs_carrot', 4);
     this.rating();
     this.say('Adana hoş geldin, ' + this.name + '! 🏝️');
     this._announceDay();
@@ -348,7 +378,15 @@ export class Cozy {
     const p = this.cellPos(c);
     if (this.inBuild(p.x, p.z, 0.45)) return false;
     const o = this.obj.get(c);
-    return !(o && (o.t === 'rock' || o.t === 'stump' || (o.t === 'furn' && Z_FURN[o.id].r > 0)));
+    if (o && (o.t === 'rock' || o.t === 'stump' || (o.t === 'furn' && Z_FURN[o.id].r > 0))) return false;
+    // büyük eşyalar (kuyu, çeşme) komşu hücreye de taşar: oraya yol çizme, oyuncu orada takılır
+    for (let j = cz - 1; j <= cz + 1; j++) for (let i = cx - 1; i <= cx + 1; i++) {
+      const n = (i !== cx || j !== cz) && this.obj.get(j * N + i);
+      if (!n) continue;
+      const rad = n.t === 'rock' ? 0.62 : n.t === 'stump' ? 0.3 : n.t === 'furn' ? Z_FURN[n.id].r : 0;
+      if (rad > 0) { const q = this.cellPos(j * N + i); if (Math.hypot(p.x - q.x, p.z - q.z) < rad + 0.3) return false; }
+    }
+    return true;
   }
   lineClear(ax, az, bx, bz) {
     const n = Math.ceil(Math.hypot(bx - ax, bz - az) / 0.3);
@@ -444,7 +482,7 @@ export class Cozy {
   shopOpen() { return zhours(this.hour, Z_SHOP_OPEN); }
   shopList() {
     const seeds = Z_FLOWERS.map((f, k) => 'seed_' + k), saps = Object.keys(Z_TREES).map((k) => 'sap_' + k);
-    return { seeds, saps, furn: this.stock };
+    return { seeds, saps, crops: Object.keys(Z_CROPS).map((k) => 'cs_' + k), furn: this.stock };
   }
   _restock() {
     const all = Object.keys(Z_FURN).filter((k) => Z_FURN[k].buy > 0).map((k) => 'f_' + k);
@@ -485,7 +523,7 @@ export class Cozy {
     if (!this.canCraft(r)) return { ok: false, msg: 'Malzeme yetersiz!' };
     if (!this.canAdd(r.out)) return { ok: false, msg: 'Çantan dolu!' };
     for (const k of Object.keys(r.need)) this.take(k, r.need[k]);
-    this.add(r.out, r.n || 1);
+    this.add(r.out, r.n || 1); this.stats.crafted++;
     return { ok: true, msg: Z_ITEMS[r.out].i + ' ' + Z_ITEMS[r.out].n + ' yapıldı!' };
   }
   selectTool(i) { const p = this.p; if (p.fish) return; p.tool = zclamp(i | 0, 0, Z_TOOLS.length - 1); p.held = null; }
@@ -493,7 +531,7 @@ export class Cozy {
     if (!this.count(id)) return false;
     const it = Z_ITEMS[id];
     if (it.eat) { this.take(id, 1); this.say('Mmm, ' + it.n + ' çok lezzetliydi! 😋'); this.ev({ t: 'eat' }); return true; }
-    if (!(it.plant !== undefined || it.sap || it.furn)) { this.say(it.i + ' ' + it.n + ' — dükkânda satabilirsin.'); return false; }
+    if (!(it.plant !== undefined || it.sap || it.furn || it.land || it.crop)) { this.say(it.i + ' ' + it.n + ' — dükkânda satabilirsin.'); return false; }
     this.p.held = id; return true;
   }
 
@@ -538,7 +576,86 @@ export class Cozy {
       this.obj.set(c, { t: 'item', id: zrnd() < 0.3 ? 'oyster' : 'shell', ox: zrange(-0.2, 0.2), oz: zrange(-0.2, 0.2) }); shells++;
     }
   }
-  _plantable(o) { return o.t === 'flower' || o.t === 'sap'; }
+  _plantable(o) { return o.t === 'flower' || o.t === 'sap' || (o.t === 'till' && !!o.crop); }
+  _ripe(o) { return o.t === 'till' && !!o.crop && o.stage >= Z_CROPS[o.crop].days; }
+  _tillable(c) {
+    if (c < 0) return false;
+    const cx = c % N, cz = (c / N) | 0, W = this.world;
+    if (cx < 5 || cz < 5 || cx >= N - 5 || cz >= N - 5 || W.treeT[c] || this.reserved.has(c)) return false;
+    const o = this.obj.get(c);
+    if (o && o.t !== 'weed' && o.t !== 'hole') return false;
+    if (W.cellH(cx, cz) < 1.0 || W.cellRange(cx, cz) > 0.9 || (W.soil[c] !== SOIL.GRASS && W.soil[c] !== SOIL.DIRT)) return false;
+    const q = this.cellPos(c);
+    return !this.inBuild(q.x, q.z, 0.4);
+  }
+  _till(c) {   // toprağı sür: koyu bir tarla hücresi olur
+    const q = this.cellPos(c);
+    this.obj.set(c, { t: 'till', crop: null, stage: 0, wet: false });
+    this.world.paintSoil(SOIL.DIRT, q.x, q.z, 0.5);
+  }
+  _untill(c) {
+    const W = this.world, cx = c % N, cz = (c / N) | 0;
+    this.obj.delete(c);
+    W.soil[c] = SOIL.GRASS; W.auto[c] = 1; W.classify(c, W.cellH(cx, cz)); W.markCell(cx, cz);
+  }
+  _sow(c, it) {
+    const p = this.p, o = this.obj.get(c), C = Z_CROPS[it.crop];
+    if (!o || o.t !== 'till') { this.say('Tohum çapayla sürülmüş toprağa ekilir. Önce çapayı (7) seçip toprağı sür!'); return; }
+    if (o.crop) { this.say('Burada zaten bir ekin var.'); return; }
+    o.crop = it.crop; o.stage = 0; o.wet = false;
+    this.stats.planted++; this.take(it.id, 1); p.act = { type: 'dig', t: 0, dur: 0.5 };
+    const q = this.cellPos(c); this.ev({ t: 'dig', x: q.x, z: q.z });
+    if (!this._inSeason(C)) this.say('⚠️ ' + C.n + ' şu an mevsiminde değil; ' + C.s.map((i) => Z_SEAS[i]).join(' / ') + ' gelince büyür.');
+  }
+  _harvest(n) {
+    const o = n.o, C = Z_CROPS[o.crop], cnt = C.y[0] + ((zrnd() * (C.y[1] - C.y[0] + 1)) | 0);
+    this.give(o.crop, cnt, n.x, n.z); this.stats.harvest += cnt;
+    if (zrnd() < 0.15) this.give('cs_' + o.crop, 1, n.x, n.z);
+    if (C.regrow) o.stage = C.days - C.regrow; else { o.crop = null; o.stage = 0; }
+    o.wet = false; this.ev({ t: 'puff', x: n.x, z: n.z });
+    this.say(C.i + ' ' + C.n + ' ×' + cnt + ' hasat ettin!');
+  }
+  // arazi genişletme: kıyıdaki sığ suya toprak dök
+  _fillable(c) {
+    if (c < 0) return false;
+    const W = this.world, cx = c % N, cz = (c / N) | 0;
+    if (cx < 12 || cz < 12 || cx >= N - 12 || cz >= N - 12) return false;
+    const h = W.cellH(cx, cz);
+    if (h > SEA + 0.25 || h < SEA - 3.2) return false;
+    return this._landNb(cx, cz) > SEA + 0.35;
+  }
+  // bir hücrenin komşuları arasındaki en yüksek kara yüksekliği
+  _landNb(cx, cz) {
+    let m = -9;
+    for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) if (dx || dz) m = Math.max(m, this.world.cellH(cx + dx, cz + dz));
+    return m;
+  }
+  _landSpot() {
+    const p = this.p;
+    for (let d = 0.9; d <= 3.4; d += 0.4) { const c = this.cellOf(p.x + Math.sin(p.ang) * d, p.z + Math.cos(p.ang) * d); if (this._fillable(c)) return c; }
+    return -1;
+  }
+  _fillLand(c) {
+    const p = this.p, W = this.world;
+    if (!this._fillable(c)) { this.say('Toprak yalnızca kıyıdaki sığ suya dökülür.'); return; }
+    if (this.count('dirt') < Z_LAND_COST) { this.say('Toprak yetmiyor: ' + Z_LAND_COST + ' parça lazım (sende ' + this.count('dirt') + '). Kürekle kazarak topla!'); return; }
+    const cx = c % N, cz = (c / N) | 0, H = W.H, VN = N + 1;
+    const hh = Math.max(1.05, Math.min(Z_LAND_H, this._landNb(cx, cz) + 0.3));   // tarla olabilecek kadar yüksek, komşu karaya yakın
+    // yeni kara + iki halka yumuşak yamaç (dik kayalık görünmesin)
+    for (let vz = cz - 2; vz <= cz + 3; vz++) for (let vx = cx - 2; vx <= cx + 3; vx++) {
+      if (vx < 0 || vz < 0 || vx > N || vz > N) continue;
+      const d = Math.max(vx < cx ? cx - vx : vx > cx + 1 ? vx - cx - 1 : 0, vz < cz ? cz - vz : vz > cz + 1 ? vz - cz - 1 : 0);
+      const i = vz * VN + vx, t = hh - 0.95 * d;
+      if (H[i] < t) H[i] = t;
+    }
+    W.afterEdit(cx - 3, cx + 3, cz - 3, cz + 3); W.waterDirty = true;
+    const q = this.cellPos(c); W.paintSoil(SOIL.GRASS, q.x, q.z, 0.5);   // yeni kara çimen olsun, çapayla sürülebilsin
+    this.take('dirt', Z_LAND_COST); this.stats.land++;
+    p.act = { type: 'dig', t: 0, dur: 0.6 };
+    this.ev({ t: 'dig', x: q.x, z: q.z }); this.ev({ t: 'splash', x: q.x, z: q.z });
+    if (this.stats.land === 1) this.say('🏝️ Ada büyüyor! Yeni kara parçasını tarla ya da bahçe yapabilirsin.');
+  }
+
 
   /* ---------------------------------------------------------------- hedef & eylem */
   front(d = 1.0) { const p = this.p; return { x: p.x + Math.sin(p.ang) * d, z: p.z + Math.cos(p.ang) * d }; }
@@ -573,7 +690,7 @@ export class Cozy {
   }
   _facingVillager() {
     const p = this.p; let best = null, bd = 2.0;
-    for (const v of this.vill) {
+    for (const v of this.folk()) {
       if (v.inside) continue;
       const dx = v.x - p.x, dz = v.z - p.z, d = Math.hypot(dx, dz);
       if (d < bd && (dx * Math.sin(p.ang) + dz * Math.cos(p.ang)) / Math.max(0.01, d) > 0.15) { bd = d; best = v; }
@@ -593,6 +710,11 @@ export class Cozy {
     if (p.fish) return { kind: 'reel', text: p.fish.st === 'bite' ? 'ÇEK!' : p.fish.st === 'fight' ? 'ŞİMDİ!' : 'Oltayı çek' };
     if (p.held) {
       const it = Z_ITEMS[p.held];
+      if (it.land) {
+        const w = this._landSpot();
+        return w >= 0 ? { kind: 'place', c: w, text: '🟤 Toprak dök · kara kazan (' + Math.min(this.count('dirt'), Z_LAND_COST) + '/' + Z_LAND_COST + ')' } : { kind: 'nothing', text: 'Dökmek için kıyıdaki sığ suya bak' };
+      }
+      if (it.crop) return { kind: 'place', c: fc, text: it.i + ' Ek (sürülmüş toprağa)' };
       return { kind: 'place', c: fc, text: it.i + ' ' + (it.furn ? 'Yerleştir' : 'Ek') };
     }
     const v = this._facingVillager();
@@ -600,11 +722,12 @@ export class Cozy {
     for (const b of this.builds) {
       if (b.t === 'vhome') continue;
       if (Math.hypot(p.x - b.door.x, p.z - b.door.z) < 1.5 + (b.t === 'board' ? 0.4 : 0)) {
-        return { kind: b.t, b, text: b.t === 'shop' ? 'Dükkâna gir' : b.t === 'home' ? 'Evine gir (uyu / görünüm)' : b.t === 'craft' ? 'Yapım tezgâhı' : 'Ada panosu' };
+        return { kind: b.t, b, text: b.t === 'mach' ? (this.machBuilt(b.m) ? Z_MACH[b.m].i + ' ' + Z_MACH[b.m].n : '🏗️ Şantiye: ' + Z_MACH[b.m].n + ' inşa et') : b.t === 'shop' ? 'Dükkâna gir' : b.t === 'home' ? 'Evine gir (uyu / görünüm)' : b.t === 'craft' ? 'Yapım tezgâhı' : 'Ada panosu' };
       }
     }
     const near = this._nearObj(f.x, f.z, 1.15, () => true);
     if (T === 'hand') {
+      if (near && this._ripe(near.o)) return { kind: 'harvest', near, text: Z_CROPS[near.o.crop].i + ' ' + Z_CROPS[near.o.crop].n + ' hasat et' };
       const tr = this._nearTree(f.x, f.z, 1.3);
       if (tr && near && tr.d <= near.d) return { kind: 'shake', tr, text: tr.meta && tr.meta.fruit ? 'Ağacı salla 🍎' : 'Ağacı salla' };
       if (near && near.o.t === 'weed') return { kind: 'pull', near, text: 'Otu yol' };
@@ -620,6 +743,8 @@ export class Cozy {
       return { kind: 'swing', text: 'Balta salla' };
     }
     if (T === 'shovel') {
+      const fo = this.obj.get(fc);
+      if (fo && fo.t === 'till') return { kind: 'untill', near: { c: fc, o: fo, ...this.cellPos(fc) }, text: fo.crop ? 'Ekini sök' : 'Tarlayı düzle' };
       if (near && near.o.t === 'rock') return { kind: 'hit', near, text: 'Kayayı kır' };
       if (near && near.o.t === 'fossil') return { kind: 'fossil', near, text: 'Fosil kaz!' };
       if (near && near.o.t === 'hole') return { kind: 'fill', near, text: 'Çukuru doldur' };
@@ -637,6 +762,16 @@ export class Cozy {
       const pl = this._nearObj(f.x, f.z, 1.5, (o) => this._plantable(o));
       return pl ? { kind: 'water', near: pl, text: 'Sula' } : { kind: 'nothing', text: 'Sulanacak bitki yok' };
     }
+    if (T === 'hoe') {
+      const fo = this.obj.get(fc);
+      if (fo && fo.t === 'till') {
+        if (this._ripe(fo)) return { kind: 'harvest', near: { c: fc, o: fo, ...this.cellPos(fc) }, text: Z_CROPS[fo.crop].i + ' ' + Z_CROPS[fo.crop].n + ' hasat et' };
+        return { kind: 'nothing', text: fo.crop ? Z_CROPS[fo.crop].i + ' büyüyor (' + fo.stage + '/' + Z_CROPS[fo.crop].days + ')' : 'Sürülmüş toprak — tohum ek' };
+      }
+      if (this._tillable(fc)) return { kind: 'till', c: fc, text: 'Toprağı sür' };
+      return { kind: 'nothing', text: fc >= 0 && this.reserved.has(fc) ? 'Yol ve yapı çevresi sürülmez' : 'Burası sürülemez' };
+    }
+    if (T === 'lantern') return { kind: 'lamp', text: p.lit ? 'Feneri söndür' : 'Feneri yak' };
     return { kind: 'nothing', text: '' };
   }
   press() {
@@ -647,7 +782,7 @@ export class Cozy {
     switch (t.kind) {
       case 'reel': this._reel(); break;
       case 'talk': return t;
-      case 'shop': case 'home': case 'craft': case 'board': return t;
+      case 'shop': case 'home': case 'craft': case 'board': case 'mach': return t;
       case 'place': this._place(t.c); break;
       case 'wave': act('wave', 0.9); break;
       case 'pull': {
@@ -683,12 +818,26 @@ export class Cozy {
       }
       case 'dig': {
         const q = this.cellPos(t.c); this.obj.set(t.c, { t: 'hole' }); act('dig', 0.6); this.ev({ t: 'dig', x: q.x, z: q.z });
-        if (zrnd() < 0.05) { this.say('Hmm, yalnızca toprak…'); }
+        this.give('dirt', 1, q.x, q.z);
+        if (zrnd() < 0.08) this.give('clay', 1, q.x, q.z);
         break;
       }
       case 'cast': this._cast(t.w); break;
       case 'net': act('net', 0.55); this._net(); break;
       case 'water': this._water(t.near); act('water', 0.8); break;
+      case 'till': {
+        const q = this.cellPos(t.c), o = this.obj.get(t.c);
+        if (o && o.t === 'weed') this.give('weed', 1, q.x, q.z);
+        this._till(t.c); this.stats.tilled++; act('dig', 0.55); this.ev({ t: 'dig', x: q.x, z: q.z });
+        if (this.stats.tilled === 1) this.say('⚒️ Toprak sürüldü! Şimdi tohum eline al, ek ve sula.');
+        break;
+      }
+      case 'untill': {
+        const n = t.near; if (n.o.crop) this.give('cs_' + n.o.crop, 1, n.x, n.z);
+        this._untill(n.c); act('dig', 0.55); this.ev({ t: 'dig', x: n.x, z: n.z }); break;
+      }
+      case 'harvest': this._harvest(t.near); act('pick', 0.6); break;
+      case 'lamp': p.lit = !p.lit; this.say(p.lit ? '🪔 Fener yandı' : '🪔 Fener söndü'); break;
       default: break;
     }
     return null;
@@ -699,6 +848,8 @@ export class Cozy {
     if (!it || !this.count(id) || c < 0) { p.held = null; return; }
     const cx = c % N, cz = (c / N) | 0, pos = this.cellPos(c);
     const o = this.obj.get(c);
+    if (it.land) { this._fillLand(c); return; }
+    if (it.crop) { this._sow(c, it); return; }
     if (it.furn) {
       const ok = !o && !W.treeT[c] && !this.inBuild(pos.x, pos.z, 0.5) && W.cellH(cx, cz) > SEA + 0.3 && W.cellRange(cx, cz) < 1.2;
       if (!ok) { this.say('Buraya yerleştirilemez.'); return; }
@@ -862,7 +1013,7 @@ export class Cozy {
     const v = {
       id: this._id++, i, name: D.name, female: D.female, pers: D.pers, fav: D.fav, look, home: home.id,
       x: home.door.x, z: home.door.z + 1, y: 0, ang: 0, tx: home.door.x, tz: home.door.z + 3, wait: zrange(1, 4), moving: false, stuck: 0,
-      inside: false, path: [], repath: 0, talking: false, friend: 0, talked: 0, gifted: 0, quest: null, rew: 0, phase: zrnd() * 6.28,
+      inside: false, path: [], repath: 0, talking: false, friend: 0, talked: 0, gifted: 0, quest: null, rew: 0, phase: zrnd() * 6.28, td: {}, sr: 0, tn: 0, say: '', sayT: 0,
     };
     v.y = this.world.getHeight(v.x, v.z);
     this.vill.push(v); this._newQuest(v);
@@ -881,7 +1032,8 @@ export class Cozy {
   talk(v) {
     v.talking = true;
     const g = this.hour < 11 ? 'Günaydın' : this.hour < 18 ? 'Merhaba' : 'İyi akşamlar', f = this.festOn(), first = !v.talked;
-    if (first) { v.talked = 1; v.friend = Math.min(100, v.friend + 3); }
+    if (first) { v.talked = 1; v.friend = Math.min(100, v.friend + 3); this.stats.talks++; }
+    v.sayT = 0;
     let line = g + ' ' + this.name + '! ';
     if (this.isBday(v)) line += 'Bugün benim doğum günüm! 🎂 Bir hediye getirdin mi acaba?';
     else if (f && zrnd() < 0.5) line += Z_FEST_TALK[f.id];
@@ -909,7 +1061,7 @@ export class Cozy {
     const love = (v.fav === 'flower' && it.flower !== undefined) || (v.fav === 'fish' && it.cat === 'fish') || (v.fav === 'fruit' && it.eat) ||
       (v.fav === 'bug' && it.cat === 'bug') || (v.fav === 'fos' && it.cat === 'fos');
     const bd = this.isBday(v), f = this.festOn();
-    v.gifted = 1; v.friend = Math.min(100, v.friend + (bd ? 20 : love ? 9 : 4) * (f && f.id === 'kis' ? 2 : 1));
+    v.gifted = 1; v.friend = Math.min(100, v.friend + (bd ? 20 : love ? 9 : 4) * (f && f.id === 'kis' ? 2 : 1)); this.stats.gifts++;
     this._friendRewards(v);
     let msg = love ? 'Vay, çok sevdim bunu! 💖' : 'Teşekkürler, ne düşüncelisin!';
     if (bd && !v.bdayDone) {
@@ -933,7 +1085,7 @@ export class Cozy {
     const night = this.hour >= 22.5 || this.hour < 6.2, party = !!this.festOn() && this.hour >= 10 && this.hour < 21;
     for (const v of this.vill) {
       const home = this.builds.find((b) => b.id === v.home);
-      v.y = this.world.getHeight(v.x, v.z);
+      v.y = this.world.getHeight(v.x, v.z); v.sayT = Math.max(0, v.sayT - dt);
       if (v.talking) { v.moving = false; v.ang = zang(v.ang, Math.atan2(this.p.x - v.x, this.p.z - v.z), Math.min(1, dt * 8)); continue; }
       v.repath = Math.max(0, (v.repath || 0) - dt);
       if (night) {
@@ -954,6 +1106,7 @@ export class Cozy {
             if (pth && pth.length) { v.path = pth; break; }
           }
           v.wait = zrange(2, 7);
+          if (zrnd() < 0.22 && Math.hypot(v.x - this.p.x, v.z - this.p.z) < 14) { v.say = zpick(Z_BARKS[v.pers] || Z_BARKS.neşeli); v.sayT = 4.5; }
         }
       }
       if (v.path.length) {
@@ -1002,6 +1155,11 @@ export class Cozy {
     }
     p.moving = sp2 > 0.3; p.speed = sp2;
     p.y = Math.max(W.getHeight(p.x, p.z), SEA - 0.28);
+    // bir şeyin içine hapsolduysa (ör. üstüne mobilya ya da kara yükselmesi) birkaç saniye sonra kendiliğinden kurtar
+    if (!this.freeze && this.blocked(p.x, p.z, 0.1)) {
+      p.inT += dt;
+      if (p.inT > 1.5) { this.unstuck('near'); this.say('🆘 Sıkıştığını fark ettim, seni yakındaki boş bir yere taşıdım.'); }
+    } else p.inT = 0;
   }
   _pickups() {
     const p = this.p, cx0 = Math.floor(p.x + HALF), cz0 = Math.floor(p.z + HALF);
@@ -1024,7 +1182,7 @@ export class Cozy {
     this.rainNow = this.rainDay && hour >= this.rainSpan[0] && hour < this.rainSpan[1];
     if (this.rainNow && !this.rainWet) { this.rainWet = true; for (const o of this.obj.values()) if (this._plantable(o)) o.wet = true; this.say('🌧️ Yağmur bitkileri suluyor'); }
     if (wasRain && !this.rainNow) this.say('Yağmur dindi 🌤️');
-    this._player(dt); this._fishing(dt); this._villagers(dt); this._bugs(dt); this._pickups(); this._contestTick();
+    this._player(dt); this._fishing(dt); this._villagers(dt); this._npcs(dt); this._machs(dt); this._bugs(dt); this._pickups(); this._contestTick(); this._questTick(dt);
     this._tick += dt;
     if (this._tick > 4) { this._tick = 0; this.rating(); }
   }
@@ -1038,11 +1196,14 @@ export class Cozy {
     if (this.contest && !this.contest.done) this._contestEnd();
     this.day++;
     const W = this.world;
-    for (const v of this.vill) { v.talked = 0; v.gifted = 0; v.bdayDone = 0; v.talking = false; if (v.quest && v.quest.done) this._newQuest(v); }
+    for (const v of this.vill) { v.talked = 0; v.gifted = 0; v.bdayDone = 0; v.talking = false; v.td = {}; if (v.quest && v.quest.done) this._newQuest(v); }
+    for (const v of this.npcs) { v.talked = 0; v.gifted = 0; v.talking = false; v.td = {}; }
+    for (const id of Z_MACH_ORDER) { const m = this.mach[id]; while (m.built && m.q.length) this._machFinish(id, Z_MACH[id], m); }   // uyurken atölyeler işini bitirir
     // büyüme
     for (const [c, o] of [...this.obj.entries()]) {
       if (o.t === 'hole') this.obj.delete(c);
       else if (o.t === 'flower') { if (o.wet && o.stage < 3) o.stage++; o.wet = false; }
+      else if (o.t === 'till') { if (o.crop && o.wet) { const C = Z_CROPS[o.crop]; if (o.stage < C.days && this._inSeason(C)) o.stage++; } o.wet = false; }
       else if (o.t === 'sap') {
         o.stage += o.wet ? 2 : 1; o.wet = false;
         if (o.stage >= 3 && !W.treeT[c]) {
@@ -1082,7 +1243,7 @@ export class Cozy {
   yearDay(d = this.day) { return ((((d | 0) - 1) % 12) + 12) % 12; }   // yıl 12 gün: her mevsim 3 gün
   festOn(d = this.day) { const y = this.yearDay(d); return y % 3 === 1 ? Z_FEST[(y - 1) / 3] : null; }
   bdayOn(d = this.day) { const y = this.yearDay(d); return this.vill.filter((v) => Z_VILL[v.i].bday === y); }
-  isBday(v) { return Z_VILL[v.i].bday === this.yearDay(); }
+  isBday(v) { const d = Z_VILL[v.i]; return !!d && d.bday === this.yearDay(); }
   upcoming(span = 12) {
     const out = [];
     for (let k = 0; k < span; k++) {
@@ -1185,7 +1346,7 @@ export class Cozy {
   rating() {
     let flowers = 0, furn = 0, weeds = 0, saps = 0;
     for (const o of this.obj.values()) {
-      if (o.t === 'flower' && o.stage >= 3) flowers++; else if (o.t === 'furn') furn++; else if (o.t === 'weed') weeds++; else if (o.t === 'sap') saps++;
+      if (o.t === 'flower' && o.stage >= 3) { if (!o.wild) flowers++; } else if (o.t === 'furn') { if (!o.deco) furn++; } else if (o.t === 'weed') weeds++; else if (o.t === 'sap') saps++;
     }
     furn += this.homeCount();
     const trees = this.world.treeCount;
@@ -1206,8 +1367,226 @@ export class Cozy {
     const fest = this.festOn();
     if (fest) for (let k = 0, n = fest.id === 'kis' ? 8 : 5; k < n; k++) { const a = k / n * 6.283; L.push({ x: 2 + Math.cos(a) * 4.2, z: 3 + Math.sin(a) * 4.2, up: 1.8, s: fest.id === 'kis' ? 0.75 : 0.55 }); }
     for (const b of this.builds) if (b.t === 'home' || b.t === 'shop' || (b.t === 'vhome' && this.vill.some((v) => v.home === b.id))) L.push({ x: b.x, z: b.z + b.hz + 0.4, up: 1.4, s: 0.45 });
+    for (const b of this.builds) if (b.t === 'mach' && this.machBuilt(b.m)) L.push({ x: b.x, z: b.z + b.hz + 0.5, up: 1.4, s: this.machWorking(b.m) ? 0.85 : 0.4 });
     for (const [c, o] of this.obj) if (o.t === 'furn' && Z_FURN[o.id].light) { const q = this.cellPos(c); L.push({ x: q.x, z: q.z, up: o.id === 'lamp' ? 2.0 : 0.5, s: Z_FURN[o.id].light * 0.8 }); }
     return L;
+  }
+
+  /* ---------------------------------------------------------------- sıkıştım & fener */
+  _safeAt(x, z) { return !this.blocked(x, z, 0.3) && this.world.getHeight(x, z) > 0.8 && !this.inBuild(x, z, 0.35); }
+  _nearSafe(x, z, maxR = 14) {
+    if (this._safeAt(x, z)) return { x, z };
+    for (let r = 0.8; r <= maxR; r += 0.6) {
+      const n = Math.max(8, Math.round(r * 9));
+      for (let k = 0; k < n; k++) { const a = (k / n) * 6.283 + r, qx = x + Math.cos(a) * r, qz = z + Math.sin(a) * r; if (this._safeAt(qx, qz)) return { x: qx, z: qz }; }
+    }
+    return null;
+  }
+  // mode: near (bulunduğun yerin yakınındaki boş nokta) | home (evin önü) | plaza (meydan)
+  unstuck(mode = 'near') {
+    const p = this.p, home = this.builds[0];
+    const from = mode === 'home' ? { x: home.door.x + 1.5, z: home.door.z + 2.5 } : mode === 'plaza' ? { x: 2, z: 4.5 } : { x: p.x, z: p.z };
+    const s = this._nearSafe(from.x, from.z, mode === 'near' ? 14 : 8) || this._nearSafe(2, 4.5, 20);
+    if (!s) return { ok: false, msg: 'Güvenli bir yer bulunamadı!' };
+    p.x = s.x; p.z = s.z; p.y = Math.max(this.world.getHeight(s.x, s.z), SEA - 0.28); p.vx = p.vz = 0; p.act = null; p.fish = null; p.stuck = 0; p.inT = 0;
+    this.path = []; this.pathAct = false; this.ev({ t: 'tele', x: s.x, z: s.z });
+    return { ok: true, msg: mode === 'home' ? '🏠 Evinin önüne geldin.' : mode === 'plaza' ? '⛲ Meydana geldin.' : '🆘 Yakındaki boş bir yere taşındın.' };
+  }
+  lanternOn() { const p = this.p; return Z_TOOLS[p.tool].id === 'lantern' && p.lit && !p.held; }
+
+  /* ---------------------------------------------------------------- kalabalık: köylüler + sabit karakterler */
+  folk() { return this.npcs.length ? this.vill.concat(this.npcs) : this.vill; }
+  _addNpcs() {
+    this.npcs = Z_NPCS.map((D, k) => ({
+      id: 900 + k, i: 100 + k, npc: D.id, name: D.name, role: D.role, female: !!D.look.female, pers: D.pers, fav: D.fav, look: Object.assign(Cozy.defaultLook(), D.look), home: null,
+      x: D.x, z: D.z, y: this.world.getHeight(D.x, D.z), ang: D.ang, moving: false, stuck: 0, inside: false, path: [], phase: k * 2.1,
+      friend: 0, talked: 0, gifted: 0, quest: null, rew: 0, talking: false, st: 1, td: {}, sr: 0, tn: 0, say: '', sayT: 0,
+    }));
+  }
+  _npcs(dt) {
+    const night = this.hour >= 22.5 || this.hour < 6.2, p = this.p;
+    for (const v of this.npcs) {
+      v.y = this.world.getHeight(v.x, v.z); v.inside = night; v.sayT = Math.max(0, v.sayT - dt);
+      const d = Math.hypot(p.x - v.x, p.z - v.z);
+      if (v.talking || d < 4.5) v.ang = zang(v.ang, Math.atan2(p.x - v.x, p.z - v.z), Math.min(1, dt * 5));
+      if (!v.sayT && d < 7 && zrnd() < dt * 0.05) { v.say = zpick(Z_BARKS[v.pers]); v.sayT = 4.5; }
+    }
+  }
+  topics(v) {
+    const st = Z_STORY[v.name] || [];
+    return [
+      { k: 'chat', l: '💬 Sohbet et', tip: 'Gündelik şeylerden konuşursunuz. Günde bir kez arkadaşlığı biraz artırır.' },
+      { k: 'story', l: '📖 Hikâyeni anlat', tip: v.name + ' hakkında ' + Math.min(v.sr, st.length) + '/' + st.length + ' bölüm dinledin. Arkadaşlık arttıkça yeni bölüm açılır.' },
+      { k: 'tip', l: '💡 Tavsiye iste', tip: 'Oyunda ne yapabileceğin hakkında ipucu verir. Günde bir kez arkadaşlığı artırır.' },
+      { k: 'news', l: '📰 Haberler', tip: 'Hava durumu, şenlikler ve adadan söylentiler.' },
+    ];
+  }
+  chat(v, k) {
+    v.td = v.td || {};
+    const first = !v.td[k]; v.td[k] = 1;
+    const bump = (n) => { if (first) { v.friend = Math.min(100, v.friend + n); this._friendRewards(v); } };
+    if (k === 'chat') { bump(2); return zpick(Z_TALK[v.pers] || Z_TALK.neşeli); }
+    if (k === 'story') {
+      const st = Z_STORY[v.name] || [], open = Math.min(st.length, Z_STORY_AT.filter((a) => v.friend >= a).length);
+      if (v.sr < open) { const s = st[v.sr++]; v.friend = Math.min(100, v.friend + 3); this._friendRewards(v); return s; }
+      if (v.sr >= st.length) return 'Hikâyemin hepsini anlattım artık. Ama seninle konuşmak hep güzel.';
+      return 'Bunu anlatacak kadar yakın değiliz henüz… Biraz daha dost olalım, sonra anlatırım. (arkadaşlık ' + Z_STORY_AT[v.sr] + ' gerekli)';
+    }
+    if (k === 'tip') {
+      bump(1);
+      const L = (Z_HINTS_NPC[v.npc] || Z_HINTS).filter((h) => h.if(this));
+      return L[(v.tn++) % L.length].t;
+    }
+    bump(1);
+    const out = [!this.rainDay ? 'Bugün hava açık görünüyor.' : this.rainNow ? 'Şu an yağmur yağıyor; ekinler kendiliğinden sulanır.' : this.hour >= this.rainSpan[1] ? 'Bugün yağmur yağdı; ekinler sulandı.' : 'Bugün saat ' + Math.floor(this.rainSpan[0]) + ':00 civarı yağmur bekleniyor; ekinler kendiliğinden sulanır.'];
+    const up = this.upcoming(6).filter((e) => e.in > 0);
+    if (up.length) out.push('Yaklaşan: ' + up[0].text + ' (' + (up[0].in === 1 ? 'yarın' : up[0].in + ' gün sonra') + ').');
+    out.push(zpick(Z_RUMORS));
+    return out.join(' ');
+  }
+
+  /* ---------------------------------------------------------------- görevler */
+  questProg(q) {
+    switch (q.ty) {
+      case 'stat': return this.stats[q.k] || 0;
+      case 'have': return this.count(q.k);
+      case 'stars': return this.stars;
+      case 'friend': return Math.max(0, ...this.folk().map((v) => v.friend));
+      case 'mach': return this.machBuilt(q.k) ? 1 : 0;
+      default: return 0;
+    }
+  }
+  questState() { return Z_QUESTS.map((q) => ({ q, have: Math.min(this.questProg(q), q.need), done: !!this.qdone[q.id] })); }
+  questsActive(n = 3) { return this.questState().filter((s) => !s.done).slice(0, n); }
+  _questTick(dt) {
+    this._qT -= dt; if (this._qT > 0) return;
+    this._qT = 0.6;
+    let k = 0;
+    for (const q of Z_QUESTS) {
+      if (this.qdone[q.id] || this.questProg(q) < q.need) continue;
+      this.qdone[q.id] = 1; this.earn(q.zil);
+      if (q.item) this.give(q.item, q.itemN || 1, this.p.x, this.p.z);
+      this.say('📜 Görev tamamlandı: ' + q.t + ' · +' + q.zil + ' 🔔' + (q.item ? ' · ' + Z_ITEMS[q.item].i + ' ' + Z_ITEMS[q.item].n + (q.itemN > 1 ? ' ×' + q.itemN : '') : ''));
+      this.ev({ t: 'fanfare' });
+      if (++k >= 2) break;
+    }
+  }
+
+  /* ---------------------------------------------------------------- atölyeler (endüstri) */
+  machBuilt(id) { const m = this.mach[id]; return !!m && m.built; }
+  machWorking(id) { const m = this.mach[id]; return !!m && m.built && m.q.length > 0; }
+  machNeed(id) {   // inşaat gereksinimleri: [{id, have, need}], zil dahil
+    const M = Z_MACH[id];
+    return { zil: M.zil, haveZil: this.zil, items: Object.keys(M.need).map((k) => ({ id: k, have: this.count(k), need: M.need[k] })) };
+  }
+  machBuild(id) {
+    const M = Z_MACH[id], m = this.mach[id];
+    if (!M || m.built) return { ok: false, msg: 'Bu atölye zaten kurulu.' };
+    if (this.zil < M.zil) return { ok: false, msg: 'Yeterli Zil yok (' + M.zil + ' 🔔 gerekli).' };
+    for (const k of Object.keys(M.need)) if (this.count(k) < M.need[k]) return { ok: false, msg: 'Malzeme yetersiz: ' + Z_ITEMS[k].i + ' ' + Z_ITEMS[k].n + ' ' + this.count(k) + '/' + M.need[k] };
+    this.zil -= M.zil; for (const k of Object.keys(M.need)) this.take(k, M.need[k]);
+    m.built = true; m.q = []; m.out = {}; this.stats.built++;
+    this.ev({ t: 'fanfare' }); this.ev({ t: 'build', id });
+    this.say('🏗️ ' + M.n + ' inşa edildi!');
+    return { ok: true, msg: M.i + ' ' + M.n + ' hazır!' };
+  }
+  machCan(id, ri) {
+    const r = Z_MACH[id].rec[ri]; if (!r) return false;
+    for (const k of Object.keys(r.in)) if (this.count(k) < r.in[k]) return false;
+    return true;
+  }
+  machStart(id, ri) {
+    const M = Z_MACH[id], m = this.mach[id], r = M && M.rec[ri];
+    if (!r || !m.built) return { ok: false, msg: 'Atölye hazır değil.' };
+    if (m.q.length >= 5) return { ok: false, msg: 'Üretim sırası dolu (en fazla 5).' };
+    if (!this.machCan(id, ri)) return { ok: false, msg: 'Malzeme yetersiz!' };
+    for (const k of Object.keys(r.in)) this.take(k, r.in[k]);
+    m.q.push({ r: ri, left: r.t, t: r.t });
+    return { ok: true, msg: 'Üretim başladı: ' + Z_ITEMS[r.out].i + ' ' + Z_ITEMS[r.out].n };
+  }
+  machCollect(id) {
+    const m = this.mach[id]; let k = 0;
+    for (const it of Object.keys(m.out)) {
+      const n = m.out[it]; if (!n) continue;
+      if (!this.canAdd(it)) { this.say('Çantan dolu!'); break; }
+      this.add(it, n); k += n; delete m.out[it];
+    }
+    return k ? { ok: true, msg: 'Ürünler çantana alındı (' + k + ' adet).' } : { ok: false, msg: 'Toplanacak ürün yok.' };
+  }
+  _machFinish(id, M, m) {
+    const q = m.q.shift(), r = M.rec[q.r];
+    m.out[r.out] = (m.out[r.out] || 0) + r.n;
+    this.stats['made_' + r.out] = (this.stats['made_' + r.out] || 0) + r.n;
+    return r;
+  }
+  _machs(dt) {
+    for (const id of Z_MACH_ORDER) {
+      const m = this.mach[id]; if (!m.built || !m.q.length) continue;
+      const M = Z_MACH[id]; m.q[0].left -= dt;
+      if (m.q[0].left <= 0) {
+        const r = this._machFinish(id, M, m), b = this.builds.find((x) => x.m === id);
+        this.ev({ t: 'ding', x: b.x, z: b.z + b.hz + 0.6 });
+        this.say('🔔 ' + M.n + ': ' + Z_ITEMS[r.out].i + ' ' + Z_ITEMS[r.out].n + ' hazır! Kapısına gidip topla.');
+      }
+    }
+  }
+
+  /* ---------------------------------------------------------------- ada düzeni: başlangıç tarlası, süsler, sabit karakterler */
+  _clearRect(x0, x1, z0, z1) {
+    const W = this.world;
+    for (let cz = Math.floor(z0 + HALF); cz <= Math.floor(z1 + HALF); cz++) for (let cx = Math.floor(x0 + HALF); cx <= Math.floor(x1 + HALF); cx++) {
+      if (cx < 0 || cz < 0 || cx >= N || cz >= N) continue;
+      const c = cz * N + cx, o = this.obj.get(c);
+      if (W.treeT[c]) { W.removeTree(c); this.trees.delete(c); }
+      if (o) { if (o.t === 'furn') this.add('f_' + o.id, 1); this.obj.delete(c); }
+    }
+  }
+  _settle(fresh) {
+    const W = this.world;
+    if (!fresh) {   // eski kayıt: atölye alanları ve tarla düzleştirilir, yollar boyanır
+      for (const b of this.builds) if (b.t === 'mach') this._flatten(b.x, b.z, Math.max(b.hx, b.hz) + 2.4, Math.max(b.hx, b.hz) + 6, zclamp(W.getHeight(b.x, b.z), 1.5, 3.4));
+      this._flatten(Z_FARM.x, Z_FARM.z, 5, 9, zclamp(W.getHeight(Z_FARM.x, Z_FARM.z), 1.6, 3.0));
+      W.afterEdit(0, N - 1, 0, N - 1); W.chunkDirty.fill(1); W.waterDirty = true;
+      for (const b of this.builds) b.y = W.getHeight(b.x, b.z);
+      this._reserve(true);
+    }
+    for (const b of this.builds) if (b.t === 'mach') this._clearRect(b.x - b.hx - 1.4, b.x + b.hx + 1.4, b.z - b.hz - 1.2, b.z + b.hz + 2.4);
+    this._clearRect(Z_FARM.x - Z_FARM.w / 2 - 1.5, Z_FARM.x + Z_FARM.w / 2 + 1.5, Z_FARM.z - Z_FARM.h / 2 - 1.5, Z_FARM.z + Z_FARM.h / 2 + 2.5);
+    this._populate();
+    W.treesDirty = true; W.waterDirty = true;
+  }
+  _freeNear(x, z) {
+    const W = this.world;
+    for (let r = 0; r <= 2.5; r += 0.5) for (let k = 0; k < (r ? 10 : 1); k++) {
+      const a = k * 0.63 + r, c = this.cellOf(x + Math.cos(a) * r, z + Math.sin(a) * r);
+      if (c < 0 || this.obj.has(c) || W.treeT[c]) continue;
+      const q = this.cellPos(c), cx = c % N, cz = (c / N) | 0;
+      if (W.cellH(cx, cz) < 1.0 || W.cellRange(cx, cz) > 1.0 || this.inBuild(q.x, q.z, 0.55)) continue;
+      return c;
+    }
+    return -1;
+  }
+  _populate() {
+    const W = this.world, F = Z_FARM, x0 = Math.floor(F.x + HALF - F.w / 2), z0 = Math.floor(F.z + HALF - F.h / 2);
+    for (let j = 0; j < F.h; j++) for (let i = 0; i < F.w; i++) {
+      const cx = x0 + i, cz = z0 + j, c = cz * N + cx;
+      if (W.cellH(cx, cz) < 1.0) continue;
+      this._till(c);
+      const o = this.obj.get(c);
+      if (j === 0) { o.crop = 'wheat'; o.stage = 1; } else if (j === 1 && i < 3) { o.crop = 'carrot'; o.stage = 0; }
+    }
+    for (const [id, x, z, rot] of Z_DECOR) {
+      const c = this._freeNear(x, z);
+      if (c >= 0) this.obj.set(c, { t: 'furn', id, rot, deco: 1 });
+    }
+    for (let k = 0, made = 0; k < 120 && made < 14; k++) {   // meydan çevresine yabani çiçekler
+      const a = zrnd() * 6.283, d = zrange(5, 17), c = this.cellOf(2 + Math.cos(a) * d, 3 + Math.sin(a) * d);
+      if (c < 0 || this.obj.has(c) || W.treeT[c] || W.soil[c] !== SOIL.GRASS) continue;
+      const cx = c % N, cz = (c / N) | 0, q = this.cellPos(c);
+      if (W.cellH(cx, cz) < 1.2 || W.cellRange(cx, cz) > 0.8 || this.inBuild(q.x, q.z, 0.6)) continue;
+      this.obj.set(c, { t: 'flower', k: (zrnd() * 6) | 0, stage: 3, wet: false, wild: 1 }); made++;
+    }
+    W.markRect(x0 - 2, x0 + F.w + 2, z0 - 2, z0 + F.h + 2);
   }
 
   /* ---------------------------------------------------------------- kayıt */
@@ -1215,10 +1594,12 @@ export class Cozy {
     const p = this.p;
     return {
       v: 1, seed: this.seed, day: this.day, zil: this.zil, name: this.name, look: this.look, hour: this.hour,
-      p: { x: p.x, z: p.z, ang: p.ang, tool: p.tool, held: p.held },
+      p: { x: p.x, z: p.z, ang: p.ang, tool: p.tool, held: p.held, lit: p.lit },
+      qdone: this.qdone, mach: this.mach, u2: 1,
+      npc: this.npcs.map((n) => ({ id: n.npc, friend: n.friend, sr: n.sr, tn: n.tn, rew: n.rew })),
       bag: this.bag, seen: this.seen, stats: this.stats, stock: this.stock, rainDay: this.rainDay, rainSpan: this.rainSpan, rainWet: this.rainWet, id: this._id, mile: this.mile, home: this.home, contest: this.contest,
       obj: [...this.obj.entries()], trees: [...this.trees.entries()],
-      vill: this.vill.map((v) => ({ i: v.i, x: v.x, z: v.z, ang: v.ang, friend: v.friend, talked: v.talked, gifted: v.gifted, quest: v.quest, rew: v.rew, inside: v.inside, id: v.id })),
+      vill: this.vill.map((v) => ({ i: v.i, x: v.x, z: v.z, ang: v.ang, friend: v.friend, talked: v.talked, gifted: v.gifted, quest: v.quest, rew: v.rew, inside: v.inside, id: v.id, sr: v.sr, tn: v.tn })),
     };
   }
   fromJSON(d) {
@@ -1227,23 +1608,32 @@ export class Cozy {
       this._reset();
       this.seed = d.seed | 0; this.day = d.day | 0 || 1; this.zil = +d.zil || 0; this.name = String(d.name || 'Ada Sakini').slice(0, 14);
       this.look = Object.assign(Cozy.defaultLook(), d.look); this.hour = +d.hour || 8;
-      Object.assign(this.p, { x: +d.p.x, z: +d.p.z, ang: +d.p.ang || 0, tool: d.p.tool | 0, held: d.p.held || null });
+      Object.assign(this.p, { x: +d.p.x, z: +d.p.z, ang: +d.p.ang || 0, tool: zclamp(d.p.tool | 0, 0, Z_TOOLS.length - 1), held: d.p.held || null, lit: d.p.lit !== false });
       this.p.y = this.world.getHeight(this.p.x, this.p.z);
       this.bag = d.bag || {}; this.seen = Object.assign({ fish: {}, bug: {}, fos: {} }, d.seen); this.stats = Object.assign(this.stats, d.stats);
       this.stock = d.stock || []; this.rainDay = !!d.rainDay; this.rainSpan = d.rainSpan || [0, 0]; this.rainWet = !!d.rainWet; this._id = d.id | 0 || 100;
       this.mile = d.mile || {}; this.home = Cozy.fixHome(d.home); this.contest = d.contest || null;
+      if (d.mach) for (const id of Z_MACH_ORDER) {
+        const s = d.mach[id];
+        if (s) this.mach[id] = { built: !!s.built, q: (Array.isArray(s.q) ? s.q : []).filter((x) => Z_MACH[id].rec[x.r]).map((x) => ({ r: x.r | 0, left: +x.left || 1, t: +x.t || 1 })), out: s.out && typeof s.out === 'object' ? s.out : {} };
+      }
       this.obj = new Map(d.obj); this.trees = new Map(d.trees);
       this._layout();
       for (const b of this.builds) b.y = this.world.getHeight(b.x, b.z);
       this._reserve(false);
       for (const sv of d.vill || []) {
         const v = this._addVillager(sv.i, true);
-        Object.assign(v, { x: sv.x, z: sv.z, ang: sv.ang, friend: sv.friend, talked: sv.talked, gifted: sv.gifted, quest: sv.quest, rew: sv.rew, inside: !!sv.inside, id: sv.id });
+        Object.assign(v, { x: sv.x, z: sv.z, ang: sv.ang, friend: sv.friend, talked: sv.talked, gifted: sv.gifted, quest: sv.quest, rew: sv.rew, inside: !!sv.inside, id: sv.id, sr: sv.sr | 0, tn: sv.tn | 0 });
       }
+      this._addNpcs();
+      for (const sn of d.npc || []) { const n = this.npcs.find((x) => x.npc === sn.id); if (n) Object.assign(n, { friend: sn.friend | 0, sr: sn.sr | 0, tn: sn.tn | 0, rew: sn.rew | 0 }); }
+      if (!d.u2) this._settle(false);   // eski kayıt: yeni alanlar (atölyeler, tarla, süsler) bir kez eklenir
       if (!this.stock.length) this._restock();
       const fs = this.festOn();
       if (!this.contest && fs && fs.id === 'balik' && this.hour < 18) this._contestInit();
       this.rating();
+      if (d.qdone) this.qdone = d.qdone;
+      else for (const q of Z_QUESTS) if (this.questProg(q) >= q.need) this.qdone[q.id] = 1;   // eski kayıt: ödülsüz, sessizce tamam say
       return true;
     } catch (e) { return false; }
   }

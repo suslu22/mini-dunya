@@ -3,7 +3,7 @@
    eklemli kol/bacak, ayakkabı ve aletler. Detaylı Mod halkı ile Ada Modu oyuncusu/köylüleri
    aynı oluşturucuyu kullanır. Build sırasında detail_view.js'den sonra eklenir.
    =================================================================== */
-const D_TOOLS = ['axe', 'hammer', 'hoe', 'rod', 'book', 'basket', 'shovel', 'net', 'can'];
+const D_TOOLS = ['axe', 'hammer', 'hoe', 'rod', 'book', 'basket', 'shovel', 'net', 'can', 'lantern'];
 const D_HAIR_STYLES = ['Kısa', 'Uzun', 'Küt', 'Topuz', 'Dikenli', 'Kıvırcık', 'At kuyruğu', 'Kısa kesim'];
 const D_OUTFITS = ['Tişört', 'Kapüşonlu', 'Elbise', 'Tulum'];
 const D_HATS = ['Yok', 'Kasket', 'Hasır şapka', 'Bere'];
@@ -157,7 +157,11 @@ function buildHuman(L) {
   mk('axe', (t) => { dcyl(0.015, 0.015, 0.5, wood, t, 0, -0.2, 0, 6); dbox(0.16, 0.1, 0.04, steel, t, 0.07, -0.42, 0); });
   mk('hammer', (t) => { dcyl(0.015, 0.015, 0.35, wood, t, 0, -0.14, 0, 6); dbox(0.12, 0.07, 0.07, '#6b7078', t, 0, -0.3, 0); });
   mk('hoe', (t) => { dcyl(0.015, 0.015, 0.6, wood, t, 0, -0.2, 0, 6); dbox(0.14, 0.05, 0.04, steel, t, 0.05, -0.5, 0); });
-  mk('rod', (t) => { dcyl(0.01, 0.01, 0.9, '#8b6a3d', t, 0, -0.3, 0.1, 5).rotation.x = -0.5; });
+  mk('rod', (t) => {
+    dcyl(0.01, 0.01, 0.9, '#8b6a3d', t, 0, -0.3, 0.1, 5).rotation.x = -0.5;
+    dcyl(0.018, 0.018, 0.08, '#5a3b22', t, 0, -0.08, 0.04, 6).rotation.x = -0.5;   // sap
+    const tip = new THREE.Object3D(); tip.position.set(0, -0.695, 0.316); t.add(tip); tools.rodTip = tip;   // olta çizgisinin bağlandığı uç
+  });
   mk('book', (t) => { dbox(0.16, 0.03, 0.2, '#7a3b2a', t, 0, -0.02, 0.06); dbox(0.14, 0.035, 0.18, '#f4efe0', t, 0, -0.02, 0.06); });
   mk('basket', (t) => { dcyl(0.1, 0.07, 0.1, '#a8803f', t, 0, -0.06, 0.04, 10); });
   mk('shovel', (t) => { dcyl(0.014, 0.014, 0.6, wood, t, 0, -0.18, 0, 6); dbox(0.1, 0.15, 0.015, steel, t, 0, -0.53, 0); dbox(0.07, 0.025, 0.025, wood, t, 0, 0.1, 0); });
@@ -165,6 +169,16 @@ function buildHuman(L) {
     dcyl(0.012, 0.012, 0.7, wood, t, 0, -0.25, 0, 6);
     const r = dmesh(dgeo('netring', () => new THREE.TorusGeometry(0.11, 0.009, 6, 18)), dmat('#d8d2c4', H_PLAIN), t, 0, -0.66, 0.1); r.rotation.x = Math.PI / 2 - 0.4;
     const bag = dmesh(dgeo('netbag', () => new THREE.ConeGeometry(0.11, 0.2, 12, 1, true)), dmat('#f4f4f0', { hd: null, transparent: true, opacity: 0.55, side: THREE.DoubleSide }), t, 0, -0.75, 0.13); bag.rotation.x = Math.PI + 0.55 - 0.4;
+  });
+  mk('lantern', (t) => {   // eski tip fener: tutma halkası, metal çerçeve, cam ve alev
+    const iron = '#2b2d33', glow = { hd: null, emissive: '#ffb347', emissiveIntensity: 1.7, transparent: true, opacity: 0.9 };
+    dmesh(dgeo('lnring', () => new THREE.TorusGeometry(0.035, 0.006, 6, 14, Math.PI)), dmat('#3a3d44', H_PLAIN), t, 0, -0.01, 0.04);
+    dcyl(0.045, 0.06, 0.03, iron, t, 0, -0.07, 0.04, 8);
+    dcyl(0.055, 0.055, 0.12, '#ffd9a0', t, 0, -0.15, 0.04, 8, glow);
+    for (let i = 0; i < 4; i++) { const a = i * Math.PI / 2 + Math.PI / 4; dcyl(0.004, 0.004, 0.12, iron, t, Math.cos(a) * 0.056, -0.15, 0.04 + Math.sin(a) * 0.056, 4); }
+    dcyl(0.06, 0.05, 0.025, iron, t, 0, -0.22, 0.04, 8);
+    dsph(0.03, '#fff3c4', t, 0, -0.15, 0.04, { hd: null, emissive: '#ffe08a', emissiveIntensity: 2.4 });
+    t.scale.setScalar(1.7);
   });
   mk('can', (t) => {
     dcyl(0.07, 0.075, 0.13, '#4f8fd6', t, 0, -0.06, 0.05, 12);

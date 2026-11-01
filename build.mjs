@@ -2,7 +2,7 @@ import fs from 'node:fs';
 const sim = fs.readFileSync('src/sim.js', 'utf8').replace(/^export /gm, '');
 const strip = (s) => s.replace(/^export /gm, '').replace(/^import .*$/gm, '');
 // Render'dan bağımsız mantık dosyaları; sırayla tek kapsama birleştirilir (import/export satırları ayıklanır)
-const logicFiles = ['src/detail.js', 'src/cozy.js', 'src/climate.js', 'src/audio.js'];
+const logicFiles = ['src/detail.js', 'src/ada_data.js', 'src/cozy.js', 'src/climate.js', 'src/audio.js'];
 const detailLogic = logicFiles.map((f) => strip(fs.readFileSync(f, 'utf8'))).join('\n');
 const detailParts = ['src/detail_view.js', 'src/human.js', 'src/detail_ui.js', 'src/cozy_view.js', 'src/cozy_ui.js', 'src/village.js'].map((f) => fs.readFileSync(f, 'utf8')).join('\n');
 const hdSrc = fs.readFileSync('src/hd.js', 'utf8'), decorSrc = fs.readFileSync('src/decor.js', 'utf8');
@@ -203,7 +203,13 @@ body.cmode #stats,body.cmode #dock,body.cmode #camBtns,body.cmode #brush,body.cm
 #czstats{display:flex;gap:10px;align-items:center;padding:7px 12px;border-radius:14px;font-size:13px;font-weight:700;white-space:nowrap;max-width:100%;overflow:hidden}
 #czfps{display:none;padding:3px 10px;border-radius:10px;font-size:11px;font-weight:600;background:rgba(10,14,28,.6);color:#dfe6fa;white-space:nowrap}
 body.showfps #fps,body.showfps #czfps{display:inline-block}
-#czcam{position:absolute;right:10px;top:60px;display:flex;flex-direction:column;gap:6px}
+#czcam{position:absolute;right:10px;top:60px;display:flex;flex-direction:column;flex-wrap:wrap-reverse;align-content:flex-start;gap:6px;max-height:calc(100% - 190px)}
+#czquests{display:none;flex-direction:column;gap:5px;padding:7px 11px 8px;border-radius:14px;font-size:12px;font-weight:700;min-width:200px;max-width:100%;cursor:pointer}
+#czquests.on{display:flex}
+#czquests h6{margin:0;font-size:11px;font-weight:800;letter-spacing:.03em;color:#ffd27a}
+.cqr{display:flex;flex-direction:column;gap:3px}.cqr>span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.cqr small{opacity:.75;font-weight:600;font-size:11px}
+.cqr>div{height:5px;border-radius:3px;background:rgba(255,255,255,.14);overflow:hidden}.cqr>div i{display:block;height:100%;border-radius:3px;background:linear-gradient(90deg,#7fe0b0,#ffd27a)}
+.dlabel .dsay{position:absolute;bottom:calc(100% + 5px);left:50%;transform:translateX(-50%);width:max-content;max-width:190px;white-space:normal;text-align:center;font-style:normal;font-weight:600;font-size:11.5px;line-height:1.3;padding:5px 9px;border-radius:10px;background:#fffbea;color:#3a2a14;text-shadow:none;box-shadow:0 2px 8px rgba(0,0,0,.35);pointer-events:none}
 #czbar{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(10px + env(safe-area-inset-bottom));display:flex;gap:6px;padding:7px;border-radius:19px}
 .czt{position:relative;flex:0 0 auto;width:50px;height:50px;border-radius:14px;border:0;background:rgba(255,255,255,.09);color:#fff;font-size:24px;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0}
 .czt i{position:absolute;left:5px;top:2px;font-size:10px;font-style:normal;opacity:.7;font-weight:800}
@@ -223,7 +229,7 @@ body.showfps #fps,body.showfps #czfps{display:inline-block}
   #czact{bottom:calc(86px + env(safe-area-inset-bottom));width:78px;height:78px;font-size:32px}
   #czprompt{bottom:calc(76px + env(safe-area-inset-bottom))}
 }
-@media (max-width:480px){.czt{width:42px;height:42px;font-size:21px}#czbar{gap:4px;padding:6px}#czleft{max-width:calc(100% - 158px)}#czstats{font-size:12px;gap:2px 8px;padding:6px 9px;flex-wrap:wrap;width:max-content}}
+@media (max-width:480px){.czt{width:38px;height:42px;font-size:19px}#czbar{gap:3px;padding:5px}#czquests{min-width:150px;padding:5px 8px 6px;font-size:11px}.cqr:nth-child(n+4){display:none}.czbar.wide>span{flex-basis:104px}#czleft{max-width:calc(100% - 158px)}#czstats{font-size:12px;gap:2px 8px;padding:6px 9px;flex-wrap:wrap;width:max-content}}
 /* ---- tooltip (fare imleci üstüne gelince) ---- */
 #tip{position:fixed;left:0;top:0;z-index:60;max-width:min(260px,calc(100vw - 16px));padding:8px 12px 9px;border-radius:12px;background:rgba(14,19,38,.96);border:1px solid rgba(255,255,255,.2);box-shadow:0 8px 24px rgba(0,0,0,.5);color:#eaf0ff;font-size:12.5px;line-height:1.4;font-weight:500;pointer-events:none;opacity:0;transform:translateY(4px);transition:opacity .12s,transform .12s}
 #tip.on{opacity:1;transform:none}
@@ -288,6 +294,9 @@ body.photo #hud,body.photo #floppy,body.photo #clabels,body.photo #cfloat,body.p
 .czcard{display:flex;flex-direction:column;align-items:center;gap:1px;padding:8px 4px;border-radius:13px;background:rgba(255,255,255,.09);text-align:center}
 .czcard span{font-size:28px}.czcard b{font-size:12.5px}.czcard small{font-size:10.5px;color:#b9c6ea}.czcard.off{opacity:.5}
 .czbig{display:flex;flex-direction:column;gap:7px;margin-top:12px}.czbig button{min-height:44px;font-size:14.5px;text-align:left;padding:0 14px}
+.czbig.grid2{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:10px}.czbig.grid2 button{min-height:40px;font-size:13px;padding:0 8px;text-align:center}
+.czbar.wide>span{flex:0 0 150px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.czttools{margin-bottom:10px}.czttools .czi{height:44px;font-size:22px}
 .czbig.two{flex-direction:row}.czbig.two button{flex:1;text-align:center}.czbig button.go{background:#7fe0b0;color:#08231a}
 .czstars{text-align:center;font-size:32px;letter-spacing:3px;margin:2px 0}.czstars span{opacity:.35}
 .czbar{display:flex;align-items:center;gap:9px;margin:7px 0;font-size:13px;font-weight:700}.czbar>span{flex:0 0 108px}.czbar>div{flex:1;height:9px;border-radius:5px;background:rgba(255,255,255,.12);overflow:hidden}.czbar i{display:block;height:100%;border-radius:5px;background:linear-gradient(90deg,#7fe0b0,#ffd27a)}.czbar small{flex:0 0 74px;text-align:right;color:#cfd8f4}
@@ -321,8 +330,8 @@ const html = `<!DOCTYPE html>
   <div id="dock" class="glass"><div id="tabs"></div><div id="tools"></div></div>
 </div>
 <div id="czhud">
-  <div id="czleft"><div id="czstats" class="glass"></div><div id="czfps"></div></div>
-  <div id="czcam"><button class="rb glass" id="czCamB" data-tip="Kamera|Kamera modunu değiştirir: üçüncü şahıs, birinci şahıs, izometrik.|C">🎥</button><button class="rb glass" id="czRotL" data-tip="Kamerayı sola çevir|Kamerayı karakterin etrafında sola döndürür.|Q">⟲</button><button class="rb glass" id="czRotR" data-tip="Kamerayı sağa çevir|Kamerayı karakterin etrafında sağa döndürür.|R">⟳</button><button class="rb glass" id="czBagB" data-tip="Çanta|Topladığın eşyalar; yiyebilir, eline alabilir, yerleştirebilirsin.|B">🎒</button><button class="rb glass" id="czCatB" data-tip="Rehber|Yakaladığın balık, böcek ve fosillerin kataloğu.|V">📖</button><button class="rb glass" id="czPhotoB" data-tip="Fotoğraf modu|Arayüzü gizler; filtre ve çerçeve seçip fotoğraf çekersin, PNG olarak indirilir.|G">📷</button></div>
+  <div id="czleft"><div id="czstats" class="glass"></div><div id="czquests" class="glass"></div><div id="czfps"></div></div>
+  <div id="czcam"><button class="rb glass" id="czCamB" data-tip="Kamera|Kamera modunu değiştirir: üçüncü şahıs, birinci şahıs, izometrik.|C">🎥</button><button class="rb glass" id="czRotL" data-tip="Kamerayı sola çevir|Kamerayı karakterin etrafında sola döndürür.|Q">⟲</button><button class="rb glass" id="czRotR" data-tip="Kamerayı sağa çevir|Kamerayı karakterin etrafında sağa döndürür.|R">⟳</button><button class="rb glass" id="czQuestB" data-tip="Görevler|Ada görevlerin ve ilerlemen. Sıradaki görevler sol üstte de görünür.|J">📜</button><button class="rb glass" id="czBagB" data-tip="Çanta|Topladığın eşyalar; yiyebilir, eline alabilir, yerleştirebilirsin.|B">🎒</button><button class="rb glass" id="czCatB" data-tip="Rehber|Yakaladığın balık, böcek ve fosillerin kataloğu.|V">📖</button><button class="rb glass" id="czPhotoB" data-tip="Fotoğraf modu|Arayüzü gizler; filtre ve çerçeve seçip fotoğraf çekersin, PNG olarak indirilir.|G">📷</button><button class="rb glass" id="czStuckB" data-tip="Sıkıştım|Bir yerde takılırsan seni yakındaki boş bir yere, evinin önüne ya da meydana taşır.|U">🆘</button></div>
   <div id="czfight" hidden><div class="fb"><i class="fz"></i><i class="fm"></i></div><small></small></div>
   <div id="czphoto" hidden><button id="czShot" class="czpb go">📸 Çek</button><button id="czFiltB" class="czpb"></button><button id="czFrameB" class="czpb"></button><button id="czPhotoX" class="czpb">✕</button></div>
   <div id="czprompt"></div>

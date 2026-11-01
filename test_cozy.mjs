@@ -2,8 +2,10 @@
 // Math.random tohumlu: aynı TEST_SEED aynı sonucu verir (varsayılan 1)
 let _s = (+process.env.TEST_SEED || 1) >>> 0;
 Math.random = () => { _s = (_s + 0x6D2B79F5) >>> 0; let t = _s; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
-import { World, N, HALF, SEA } from './src/sim.js';
-import { Cozy, Z_ITEMS, Z_FISH, Z_BUGS, Z_FURN, Z_RECIPES, Z_MILE, Z_FEST } from './src/cozy.js';
+// dinamik içe aktarma: modüller Math.random'ı yüklenirken yakalar, tohum önce takılmalı
+const { World, N, HALF, SEA, SOIL } = await import('./src/sim.js');
+const { Cozy, Z_ITEMS, Z_FISH, Z_BUGS, Z_FURN, Z_RECIPES, Z_MILE, Z_FEST, Z_LAND_COST, Z_TOOLS } = await import('./src/cozy.js');
+const { Z_CROPS, Z_MACH, Z_QUESTS } = await import('./src/ada_data.js');
 
 let fail = 0;
 const ok = (c, m) => { if (!c) { fail++; console.log('✗ ' + m); } else console.log('✓ ' + m); };
@@ -110,10 +112,11 @@ for (let d = 0; d < 3; d++) cz.newDay();
 ok(w.treeT[spot2] === 1 && cz.trees.get(spot2).k === 'apple', 'fidan ağaç oldu');
 
 // meyve silkeleme
-const fruitCell = [...cz.trees.entries()].find(([c, m]) => m.fruit > 0 && w.treeT[c])[0], fp = cz.treePos(fruitCell);
+const doorFar = (c) => { const q = cz.treePos(c); return cz.builds.every((b) => !b.door || Math.hypot(b.door.x - q.x, b.door.z - (q.z - 1.2)) > 3.5); };   // kapı önündeki ağaç hedefi bozmasın
+const fruitCell = [...cz.trees.entries()].find(([c, m]) => m.fruit > 0 && w.treeT[c] && doorFar(c))[0], fp = cz.treePos(fruitCell);
 cz.p.x = fp.x; cz.p.z = fp.z - 1.2; cz.p.ang = 0; cz.p.tool = 0; cz.p.act = null;
 const k0 = Object.values(cz.obj).length;
-ok(cz.target().kind === 'shake', 'ağaç sallanabilir');
+ok(cz.target().kind === 'shake', 'ağaç sallanabilir (' + cz.target().kind + ')');
 cz.press(); step(40);
 const dropped = [...cz.obj.values()].filter((o) => o.t === 'item' && ['apple', 'orange', 'cherry'].includes(o.id)).length;
 ok(cz.trees.get(fruitCell).fruit === 0 && dropped + cz.count('apple') + cz.count('orange') + cz.count('cherry') >= 3, 'meyveler yere düştü (' + dropped + ')');
@@ -184,7 +187,7 @@ cz.zil = 5000;
 ok(cz.buy('sap_cherry').ok && cz.count('sap_cherry') === 1, 'satın alma');
 cz.zil = 10;
 ok(!cz.buy('f_fountain').ok, 'para yetmeyince alınmaz');
-cz.add('wood', 40); cz.add('stone', 20); cz.add('clay', 20); cz.add('iron', 5); cz.add('weed', 20);
+cz.add('wood', 40); cz.add('stone', 20); cz.add('clay', 20); cz.add('iron', 5); cz.add('weed', 60); cz.add('plank', 30); cz.add('brick', 20);
 let crafted = 0;
 Z_RECIPES.forEach((r, i) => { if (cz.craft(i).ok) crafted++; });
 ok(crafted === Z_RECIPES.length, 'tüm tarifler yapılabilir (' + crafted + ')');
@@ -320,6 +323,158 @@ ok(cz.vill.length === 4, 'yeni köylü taşındı');
   ok(cz.milestones('bug').every((m) => m.can), 'tüm böcekler ödülleri açar');
 }
 
+// arazi genişletme: kıyıdaki sığ suya toprak dök
+{
+  cz.bag = {}; cz.stats.land = 0;
+  let spot = -1, ground = -1;
+  for (let c = 0; c < N * N; c++) {
+    const cx = c % N, cy = (c / N) | 0;
+    if (spot < 0 && cz._fillable(c)) spot = c;
+    if (ground < 0 && cx > 20 && cx < 140 && cy > 20 && cy < 140 && w.cellH(cx, cy) > 1.5) ground = c;
+  }
+  ok(spot >= 0 && ground >= 0, 'kıyıda toprak dökülebilir sığ su var');
+  ok(!cz._fillable(ground), 'karaya toprak dökülmez');
+  cz.add('dirt', 2); cz._fillLand(spot);
+  ok(cz.count('dirt') === 2 && cz.stats.land === 0, 'toprak yetmezse kara oluşmaz');
+  cz.add('dirt', 7); cz._fillLand(ground);
+  ok(cz.count('dirt') === 9 && cz.stats.land === 0, 'uygun olmayan yere toprak harcanmaz');
+  cz._fillLand(spot);
+  ok(cz.count('dirt') === 9 - Z_LAND_COST && cz.stats.land === 1, 'toprak dökünce ' + Z_LAND_COST + ' parça harcanır');
+  ok(w.cellH(spot % N, (spot / N) | 0) >= 1.0 && !cz._fillable(spot), 'yeni kara yükseldi');
+  ok(cz._tillable(spot), 'yeni kara tarla yapılabilir');
+  // oyuncu kıyıdan bakınca hedef bulur
+  let sp2 = -1; for (let c = 0; c < N * N && sp2 < 0; c++) if (cz._fillable(c)) sp2 = c;
+  const q2 = cz.cellPos(sp2); let nb = null, nh = -9;
+  for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) if (dx || dz) { const h = w.cellH(sp2 % N + dx, ((sp2 / N) | 0) + dz); if (h > nh) { nh = h; nb = [dx, dz]; } }
+  const L = Math.hypot(nb[0], nb[1]);
+  Object.assign(cz.p, { x: q2.x + nb[0] / L * 1.6, z: q2.z + nb[1] / L * 1.6, ang: Math.atan2(-nb[0], -nb[1]), vx: 0, vz: 0, act: null });
+  cz.hold('dirt');
+  ok(cz.target().kind === 'place' && cz._landSpot() >= 0, 'elde toprakla kıyıya bakınca hedef çıkar');
+  const d1 = cz.count('dirt'); cz.press(); cz.p.act = null;
+  ok(cz.count('dirt') === d1 - Z_LAND_COST && cz.stats.land === 2, 'basınca kara kazanılır');
+  cz.p.held = null;
+}
+
+// çapa: sür, ek, sula, büyüt, hasat et
+{
+  cz.bag = {}; cz.setSeason(0); cz.stats.tilled = 0; cz.stats.planted = 0; cz.stats.harvest = 0;
+  let tc = -1; for (let c = 0; c < N * N && tc < 0; c++) if (cz._tillable(c) && !cz.obj.has(c)) tc = c;
+  ok(tc >= 0, 'sürülebilir toprak var');
+  const q = cz.cellPos(tc);
+  Object.assign(cz.p, { x: q.x, z: q.z - 1.0, ang: 0, vx: 0, vz: 0, act: null }); cz.selectTool(6);
+  ok(Z_TOOLS[cz.p.tool].id === 'hoe' && cz.target().kind === 'till', 'çapa sürülebilir toprağı hedefler');
+  cz.press(); cz.p.act = null;
+  ok(cz.obj.get(tc) && cz.obj.get(tc).t === 'till' && cz.stats.tilled === 1 && w.soil[tc] === SOIL.DIRT, 'çapayla toprak sürüldü');
+  ok(!cz._tillable(tc), 'sürülmüş toprak tekrar sürülmez');
+  cz.add('cs_wheat', 2); cz.hold('cs_wheat'); cz.press(); cz.p.act = null; cz.p.held = null;
+  const o = cz.obj.get(tc);
+  ok(o.crop === 'wheat' && cz.count('cs_wheat') === 1 && cz.stats.planted === 1, 'tohum sürülmüş toprağa ekildi');
+  o.stage = 0; cz.newDay();
+  ok(o.stage === 0, 'sulanmazsa ekin büyümez');
+  o.wet = true; cz.newDay();
+  ok(o.stage === 1 && !o.wet, 'sulanan ekin büyür');
+  cz.setSeason(3); o.wet = true; cz.newDay();
+  ok(o.stage === 1, 'mevsimi olmayan ekin büyümez');
+  cz.setSeason(0); o.wet = true; cz.newDay();
+  ok(cz._ripe(o), 'ekin olgunlaştı (' + o.stage + '/' + Z_CROPS.wheat.days + ')');
+  cz.selectTool(0);
+  ok(cz.target().kind === 'harvest', 'olgun ekin elle hasat edilir');
+  cz.press(); cz.p.act = null;
+  ok(cz.count('wheat') >= Z_CROPS.wheat.y[0] && cz.stats.harvest >= Z_CROPS.wheat.y[0] && !cz.obj.get(tc).crop, 'hasat: ürün çantada, tarla boşaldı');
+  cz.selectTool(2); cz.press(); cz.p.act = null;
+  ok(!cz.obj.has(tc) && w.soil[tc] !== SOIL.DIRT, 'kürekle tarla düzlendi');
+}
+
+// takıldım: güvenli yere ışınla
+{
+  const home = cz.builds[0];
+  for (const mode of ['near', 'home', 'plaza']) {
+    Object.assign(cz.p, { x: home.x, z: home.z, vx: 0, vz: 0 });
+    const r = cz.unstuck(mode);
+    ok(r.ok && cz._safeAt(cz.p.x, cz.p.z), 'takılma çözücü (' + mode + ') güvenli yere taşıdı');
+  }
+  Object.assign(cz.p, { x: 0, z: -HALF + 4 });
+  cz.p.y = w.getHeight(cz.p.x, cz.p.z); cz.update(0.05, 10);
+  ok(cz.unstuck().ok && w.getHeight(cz.p.x, cz.p.z) > 0.8, 'sudan ya da kıyıdan da kurtarır');
+}
+
+// fener
+{
+  // köylü, kapı ve nesnelerden uzak boş bir yer (hedef fenere düşsün)
+  let free = null;
+  for (let r = 0; r < 30 && !free; r += 2) for (let k = 0; k < 16 && !free; k++) {
+    const x = 2 + Math.cos(k * 0.39) * r, z = 4.5 + Math.sin(k * 0.39) * r;
+    if (cz._safeAt(x, z) && cz.folk().every((v) => Math.hypot(v.x - x, v.z - z) > 6) && cz.builds.every((b) => !b.door || Math.hypot(b.door.x - x, b.door.z - z) > 4)) free = { x, z };
+  }
+  ok(!!free, 'boş bir yer bulundu');
+  Object.assign(cz.p, { x: free.x, z: free.z, vx: 0, vz: 0, act: null });
+  cz.p.lit = true; cz.p.held = null; cz.selectTool(7);
+  ok(Z_TOOLS[7].id === 'lantern' && cz.lanternOn(), 'fener elde yanık');
+  cz.selectTool(0); ok(!cz.lanternOn(), 'fener elde değilse yanmaz');
+  cz.selectTool(7); cz.press(); cz.p.act = null;
+  ok(!cz.p.lit && !cz.lanternOn(), 'fener söndürülür');
+  cz.press(); cz.p.act = null; ok(cz.p.lit, 'fener yeniden yakılır');
+  cz.selectTool(0);
+}
+
+// konuşma: köylüler + sabit karakterler
+{
+  const fk = cz.folk();
+  ok(fk.length === cz.vill.length + 2 && fk.some((v) => v.name === 'Rüstem') && fk.some((v) => v.name === 'Hacer'), 'köylüler ve iki sabit karakter var');
+  const v = fk.find((x) => x.name === 'Rüstem');
+  ok(cz.topics(v).length === 4, 'dört konuşma konusu');
+  v.friend = 0; v.td = {};
+  const a = cz.chat(v, 'chat'), f1 = v.friend;
+  ok(typeof a === 'string' && a.length > 5 && f1 > 0, 'sohbet cevap verir, arkadaşlık artar');
+  cz.chat(v, 'chat'); ok(v.friend === f1, 'aynı gün ikinci sohbet arkadaşlığı artırmaz');
+  ok(cz.chat(v, 'tip').length > 5 && cz.chat(v, 'news').length > 5, 'tavsiye ve haberler konuşur');
+  const s0 = cz.chat(v, 'story'); ok(s0.length > 10 && v.sr === 1, 'ilk hikâye bölümü açık');
+  v.friend = 100; for (let i = 0; i < 6; i++) cz.chat(v, 'story');
+  ok(v.sr >= 4, 'arkadaşlıkla tüm hikâye açılır (' + v.sr + ')');
+  v.friend = 0;
+}
+
+// görevler
+{
+  const st = cz.questState();
+  ok(st.length === Z_QUESTS.length && Z_QUESTS.length >= 20, 'görev listesi (' + st.length + ')');
+  ok(cz.questsActive(3).length === 3 && cz.questsActive(3).every((s) => !s.done), 'en çok 3 etkin görev gösterilir');
+  const q = Z_QUESTS.find((x) => x.id === 'q_gift'), zl = cz.zil;
+  for (const x of Z_QUESTS) if (x.id !== 'q_gift') cz.qdone[x.id] = 1;   // diğerleri ödenmiş sayılsın
+  delete cz.qdone.q_gift; cz.stats.gifts = 0; cz._qT = 0; cz._questTick(0.1);
+  ok(!cz.qdone.q_gift, 'koşul sağlanmadan görev bitmez');
+  cz.stats.gifts = 1; cz._qT = 0; cz._questTick(0.1);
+  ok(cz.qdone.q_gift && cz.zil === zl + q.zil, 'görev otomatik ödenir (+' + q.zil + ')');
+  const zl2 = cz.zil; cz._qT = 0; cz._questTick(0.1);
+  ok(cz.zil === zl2, 'görev ikinci kez ödenmez');
+}
+
+// atölyeler
+{
+  cz.bag = {}; cz.zil = 0;
+  ok(!cz.machBuild('saw').ok, 'parasız/malzemesiz atölye kurulmaz');
+  cz.zil = Z_MACH.saw.zil; for (const k of Object.keys(Z_MACH.saw.need)) cz.add(k, Z_MACH.saw.need[k]);
+  ok(cz.machBuild('saw').ok && cz.machBuilt('saw') && cz.zil === 0 && !cz.count('wood'), 'hızar kuruldu, malzeme ve zil harcandı');
+  ok(!cz.machBuild('saw').ok, 'aynı atölye iki kez kurulmaz');
+  ok(!cz.machStart('saw', 0).ok, 'malzemesiz üretim başlamaz');
+  cz.add('wood', 4);
+  ok(cz.machStart('saw', 0).ok && cz.machStart('saw', 0).ok && cz.machWorking('saw') && !cz.count('wood'), 'üretim sıraya girdi, girdiler harcandı');
+  const t0 = Z_MACH.saw.rec[0].t;
+  for (let i = 0; i < (t0 * 2 + 2) / 0.1; i++) cz.update(0.1, 10);
+  ok(!cz.machWorking('saw') && cz.mach.saw.out.plank === 2, 'iki parti tahta üretildi');
+  ok(cz.machCollect('saw').ok && cz.count('plank') === 2 && cz.stats.made_plank === 2, 'ürünler çantaya alındı');
+  ok(!cz.machCollect('saw').ok, 'boş atölyeden toplanmaz');
+  // uyurken kuyruk biter
+  cz.add('wood', 2); cz.machStart('saw', 0); cz.newDay();
+  ok(cz.mach.saw.out.plank === 1, 'uyurken üretim tamamlanır');
+  // zincir: kil → tuğla
+  Object.assign(cz.mach.kiln, { built: true, q: [], out: {} });
+  cz.add('clay', 3); cz.add('wood', 1);
+  ok(cz.machStart('kiln', 0).ok, 'tuğla ocağı üretir');
+  cz.newDay(); ok(cz.mach.kiln.out.brick === 2, 'iki tuğla çıktı');
+  cz.mach.kiln.built = false; cz.mach.saw.built = false; cz.mach.saw.out = {}; cz.mach.kiln.out = {};
+}
+
 // ev içi döşeme
 {
   cz.bag = {}; cz.zil = 0; cz.add('f_chair', 2); cz.add('f_lamp', 1);
@@ -345,6 +500,8 @@ ok(c2.zil === cz.zil && c2.day === cz.day && c2.vill.length === cz.vill.length &
 ok(c2.count('wood') === cz.count('wood'), 'çanta aynı');
 ok(c2.home.slots[0] === 'f_lamp' && c2.home.wall === 2 && c2.home.floor === 1 && JSON.stringify(c2.mile) === JSON.stringify(cz.mile), 'ev ve koleksiyon kayıtta');
 ok(c2.contest && c2.contest.score === cz.contest.score && c2.contest.rv.length === cz.contest.rv.length, 'yarışma kayıtta');
+ok(JSON.stringify(c2.qdone) === JSON.stringify(cz.qdone) && c2.stats.land === cz.stats.land && c2.p.lit === cz.p.lit, 'görevler, arazi sayacı ve fener kayıtta');
+ok(c2.npcs.length === 2 && c2.folk().length === cz.folk().length, 'sabit karakterler kayıtta');
 {   // eski kayıt (v1, yeni alanlar yok)
   const old = JSON.parse(JSON.stringify(js)); delete old.mile; delete old.home; delete old.contest;
   const c3 = new Cozy(new World());
@@ -353,6 +510,20 @@ ok(c2.contest && c2.contest.score === cz.contest.score && c2.contest.rv.length =
 for (let i = 0; i < 200; i++) c2.update(0.05, 10);
 ok(true, 'yüklenen oyun çalışıyor');
 ok(!new Cozy(new World()).fromJSON({ v: 9 }), 'bozuk kayıt reddedildi');
+{   // güncelleme öncesi kayıt: atölye, görev, sabit karakter ve tarla alanları yok
+  const old = JSON.parse(JSON.stringify(js)); delete old.u2; delete old.mach; delete old.npc; delete old.qdone;
+  old.obj = old.obj.filter(([, o]) => o.t !== 'till');
+  const w4 = new World(); w4.deserialize(w.serialize());
+  const c4 = new Cozy(w4);
+  ok(c4.fromJSON(old), 'güncelleme öncesi kayıt yüklenir');
+  ok(c4.npcs.length === 2 && !c4.machBuilt('saw') && c4.mach.saw.q.length === 0, 'eski kayıtta sabit karakterler var, atölyeler kurulmamış');
+  let tills = 0; for (const o of c4.obj.values()) if (o.t === 'till') tills++;
+  ok(tills >= 6, 'eski kayda başlangıç tarlası eklendi (' + tills + ' hücre)');
+  ok(c4.qdone && Object.keys(c4.qdone).length > 0, 'eski kayıtta yapılmış görevler sessizce tamamlandı sayılır');
+  const z0 = c4.zil; for (let i = 0; i < 100; i++) c4.update(0.05, 10);
+  ok(c4.zil === z0, 'eski kayıtta görev ödülü yağmaz');
+  const again = new Cozy(new World()); ok(again.fromJSON(JSON.parse(JSON.stringify(c4.toJSON()))) && again.npcs.length === 2, 'taşınan kayıt yeniden kaydedilip yüklenir');
+}
 
 // uzun koşu: uyku, çoklu gün, hata yok
 for (let d = 0; d < 20; d++) { for (let i = 0; i < 50; i++) cz.update(0.1, (d * 5 + i * 0.5) % 24); cz.newDay(); }
