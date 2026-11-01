@@ -3,9 +3,23 @@
 
 export const N = 160, VN = N + 1, HALF = N / 2, SEA = 0;
 export const CH = 16, NCH = N / CH;
-export const SOIL = { GRASS: 0, SAND: 1, SNOW: 2, ROCK: 3, DIRT: 4, LAVA: 5, ASH: 6 };
-export const ST = { IDLE: 0, WALK: 1, CHOPWALK: 2, CHOP: 3, BUILDWALK: 4, BUILD: 5 };
-export const MAXHUM = 900, MAXHOUSE = 500, MAXTREE = 7000, MAXTRIBE = 8;
+export const SOIL = { GRASS: 0, SAND: 1, SNOW: 2, ROCK: 3, DIRT: 4, LAVA: 5, ASH: 6, FARM: 7 };   // FARM sanaldır: yalnızca çizimde, tarla hücresi için
+export const ST = { IDLE: 0, WALK: 1, CHOPWALK: 2, CHOP: 3, BUILDWALK: 4, BUILD: 5, FARMWALK: 6, FARM: 7 };
+export const MAXHUM = 900, MAXHOUSE = 500, MAXTREE = 7000, MAXTRIBE = 8, MAXFARM = 320;
+
+// Kabile çağları: bir sonraki çağa geçmek için bilgi birikimi (kn) ile nüfus, ev ve tarla eşikleri aranır.
+export const ERAS = [
+  { n: 'Taş Çağı', i: '🪨', pop: 0, houses: 0, farms: 0, kn: 0 },
+  { n: 'Tarım Çağı', i: '🌾', pop: 7, houses: 2, farms: 0, kn: 60 },
+  { n: 'Demir Çağı', i: '⚒️', pop: 16, houses: 5, farms: 3, kn: 450 },
+  { n: 'Sanayi Çağı', i: '🏭', pop: 40, houses: 11, farms: 6, kn: 1600 },
+  { n: 'Modern Çağ', i: '🏙️', pop: 90, houses: 24, farms: 10, kn: 4500 },
+];
+export const TRIBE_NAMES = ['Kırmızı', 'Mavi', 'Sarı', 'Mor', 'Turkuaz', 'Pembe', 'Yeşil', 'Turuncu'];
+export const tribeTitle = (t) => TRIBE_NAMES[t.id % TRIBE_NAMES.length] + (t.era >= 3 ? ' Şehir' : t.era >= 2 ? ' Kasaba' : ' Köy');
+const SEASON_GROW = [1.0, 1.35, 0.55, 0];            // ilkbahar, yaz, sonbahar, kış: ekin büyüme hızı
+const SEASON_LOC = ['İlkbaharda', 'Yazın', 'Sonbaharda', 'Kışın'];
+const GROW_T = 45;                                    // normal hızda bir ekinin olgunlaşma süresi (sn)
 
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const smooth = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
@@ -86,6 +100,11 @@ export class World {
     this.houses = [];
     this.humans = [];
     this.tribes = [];
+    this.farms = [];
+    this.farmAt = new Int16Array(N * N).fill(-1);
+    this.log = []; this.logId = 0; this._wn = {};   // köy günlüğü
+    this.onNote = null;
+    this.season = -1; this.day = 1; this.tod = 0.33;   // ana döngü her karede iletir
     this.burning = [];
     this.bHead = new Int32Array(NB * NB);
     this.bNext = new Int32Array(MAXHUM + 64);
@@ -153,6 +172,7 @@ export class World {
   generate(seed) {
     this.simTime = 0; this.natAcc = 0;
     this.humans.length = 0; this.houses.length = 0; this.tribes.length = 0; this.burning.length = 0;
+    this.farms.length = 0; this.farmAt.fill(-1); this.log.length = 0; this.logId = 0; this._wn = {}; this.season = -1;
     this.houseAt.fill(-1); this.fire.fill(0); this.treeT.fill(0); this.treeCount = 0;
     this.auto.fill(1);
     const n1 = makePerlin(seed), n2 = makePerlin(seed * 7 + 13), n3 = makePerlin(seed * 3 + 5);
@@ -250,8 +270,12 @@ export class World {
       this.classify(c, h);
       if (h < SEA + 0.3) {
         if (this.treeT[c]) this.removeTree(c);
-        if (this.houseAt[c] >= 0) this.destroyHouse(this.houseAt[c]);
-      } else if (this.houseAt[c] >= 0) this.houses[this.houseAt[c]].y = h;   // ev araziye yapışık kalsın
+        if (this.houseAt[c] >= 0) this.destroyHouse(this.houseAt[c], 'flood');
+        if (this.farmAt[c] >= 0) this.destroyFarm(this.farmAt[c], 'flood');
+      } else {
+        if (this.houseAt[c] >= 0) this.houses[this.houseAt[c]].y = h;   // ev araziye yapışık kalsın
+        if (this.farmAt[c] >= 0) this.farms[this.farmAt[c]].y = h;
+      }
     }
     this.markRect(x0, x1, z0, z1);
     this.waterDirty = true;
@@ -292,7 +316,11 @@ export class World {
     for (const h of this.humans) if (!h.dead && Math.hypot(h.x - hx, h.z - hz) < rad) this._kill(h, 'erase');
     for (let i = this.houses.length - 1; i >= 0; i--) {
       const o = this.houses[i];
-      if (Math.hypot(o.x - hx, o.z - hz) < rad) this.destroyHouse(i);
+      if (Math.hypot(o.x - hx, o.z - hz) < rad) this.destroyHouse(i, '');
+    }
+    for (let i = this.farms.length - 1; i >= 0; i--) {
+      const f = this.farms[i];
+      if (Math.hypot(f.x - hx, f.z - hz) < rad) this.destroyFarm(i, '');
     }
   }
 
@@ -309,10 +337,16 @@ export class World {
     }
     for (let i = 0; i < this.tribes.length; i++) {
       const t = this.tribes[i];
-      if (t.pop === 0 && t.houses === 0) { t.cx = x; t.cz = z; t.building = 0; return i; }
+      if (t.pop === 0 && t.houses === 0) {
+        if (t.farms) for (let k = this.farms.length - 1; k >= 0; k--) if (this.farms[k].tribe === i) this.destroyFarm(k, '');
+        this.tribes[i] = this._mkTribe(i, x, z);
+        this._note(i, '🏕️', 'kuruldu');
+        return i;
+      }
     }
     if (this.tribes.length < MAXTRIBE) {
-      this.tribes.push({ id: this.tribes.length, pop: 0, houses: 0, building: 0, cx: x, cz: z });
+      this.tribes.push(this._mkTribe(this.tribes.length, x, z));
+      this._note(this.tribes.length - 1, '🏕️', 'kuruldu');
       return this.tribes.length - 1;
     }
     // hepsi dolu: en yakın kabile
@@ -323,6 +357,12 @@ export class World {
     }
     return bi;
   }
+  _mkTribe(id, x, z) {
+    return {
+      id, pop: 0, houses: 0, building: 0, cx: x, cz: z,
+      era: 0, kn: 0, farms: 0, fbuild: 0, fact: 0, food: 0, age: 0, harv: 0, hAll: 0, gone: false, mH: 0, mP: 0, mF: 0,
+    };
+  }
   _recenter(t) {
     let sx = 0, sz = 0, n = 0;
     for (const h of this.houses) if (h.tribe === t.id) { sx += h.x; sz += h.z; n++; }
@@ -332,13 +372,14 @@ export class World {
   // ---------------------------------------------------------------- insanlar & evler
   spawnHuman(x, z, tribe, age) {
     if (this.humans.length >= MAXHUM) return null;
+    const era = this.tribes[tribe].era;
     const h = {
       x, z, y: this.getHeight(x, z), tx: x, tz: z, state: ST.IDLE, timer: 0, tribe, age,
-      life: 200 + rnd() * 120, hp: 100, wood: 0, cd: 6 + rnd() * 14, ang: rnd() * 6.28, phase: rnd() * 6.28,
+      life: 200 + rnd() * 120 + era * 22, hp: 100, wood: 0, cd: 6 + rnd() * 14, ang: rnd() * 6.28, phase: rnd() * 6.28,
       think: rnd() * 0.8, flash: 0, moving: false, skin: (rnd() * 5) | 0, dead: false,
-      chopCell: -1, buildCell: -1, charge: false, fxT: 0,
+      chopCell: -1, buildCell: -1, charge: false, fxT: 0, farm: null, farmCell: -1, job: 0,
     };
-    this.humans.push(h); this.tribes[tribe].pop++;
+    this.humans.push(h); this.tribes[tribe].pop++; this.tribes[tribe].gone = false;
     return h;
   }
   _validSpot(x, z) {
@@ -380,7 +421,7 @@ export class World {
   _buildable(cx, cz, ignoreTree) {
     if (cx < 3 || cz < 3 || cx > N - 4 || cz > N - 4) return false;
     const c = cz * N + cx;
-    if (this.houseAt[c] >= 0 || this.fire[c] > 0 || this.soil[c] === SOIL.LAVA) return false;
+    if (this.houseAt[c] >= 0 || this.farmAt[c] >= 0 || this.fire[c] > 0 || this.soil[c] === SOIL.LAVA) return false;
     if (!ignoreTree && this.treeT[c]) return false;
     const h = this.cellH(cx, cz);
     if (h < 1.0 || h > 11 || this.cellRange(cx, cz) > 1.1) return false;
@@ -388,37 +429,48 @@ export class World {
       if ((dx || dz) && this.houseAt[(cz + dz) * N + cx + dx] >= 0) return false;
     return true;
   }
-  createHouse(cell, tribe, instant) {
-    if (this.houses.length >= MAXHOUSE || this.houseAt[cell] >= 0) return -1;
+  // kind: 0 normal ev, 1 fabrika (Sanayi Çağı'ndan itibaren). era: evin görünüm çağı (kabile çağına doğru yükselir)
+  createHouse(cell, tribe, instant, kind = 0) {
+    if (this.houses.length >= MAXHOUSE || this.houseAt[cell] >= 0 || this.farmAt[cell] >= 0) return -1;
     const cx = cell % N, cz = (cell / N) | 0;
     this.removeTree(cell);
+    const tr = this.tribes[tribe];
     const o = {
       x: cx - HALF + 0.5, z: cz - HALF + 0.5, y: 0, cell, tribe,
       rot: ((rnd() * 4) | 0) * Math.PI / 2 + (rnd() - 0.5) * 0.35, prog: instant ? 1 : 0,
+      era: tr.era, kind, up: 0,
     };
     o.y = this.cellH(cx, cz);
     this.houses.push(o);
     this.houseAt[cell] = this.houses.length - 1;
-    const tr = this.tribes[tribe]; tr.houses++; this._recenter(tr);
+    tr.houses++; if (kind === 1) tr.fact++;
+    this._recenter(tr);
     return this.houses.length - 1;
   }
-  destroyHouse(idx) {
+  destroyHouse(idx, cause) {
     const o = this.houses[idx]; if (!o) return;
-    const tr = this.tribes[o.tribe]; tr.houses--;
+    const tr = this.tribes[o.tribe]; tr.houses--; if (o.kind === 1) tr.fact--;
     this.houseAt[o.cell] = -1;
     this.fx('debris', o.x, o.y + 0.4, o.z, 1);
     const last = this.houses.pop();
     if (last !== o) { this.houses[idx] = last; this.houseAt[last.cell] = idx; }
     this._recenter(tr);
+    const L = { fire: ['🔥', '# ev yandı'], meteor: ['☄️', '# ev meteorla yıkıldı'], lava: ['🌋', '# ev lavda kaldı'], flood: ['🌊', '# ev sular altında kaldı'] }[cause];
+    if (L) this._note(o.tribe, L[0], L[1], 'hl' + cause);
   }
   _kill(h, cause) {
     if (h.dead) return;
     h.dead = true;
     const tr = this.tribes[h.tribe]; tr.pop--;
     if (h.buildCell >= 0) { tr.building = Math.max(0, tr.building - 1); h.buildCell = -1; }
+    if (h.farmCell >= 0) { tr.fbuild = Math.max(0, tr.fbuild - 1); h.farmCell = -1; }
+    if (h.farm) { h.farm.claim = 0; h.farm = null; }
     if (cause === 'drown') this.fx('splash', h.x, SEA, h.z, 1);
     else if (cause === 'burn') this.fx('smoke', h.x, h.y + 0.3, h.z, 1);
     else this.fx('puff', h.x, h.y + 0.3, h.z, 1);
+    const L = { hit: ['⚔️', '# kişi savaşta öldü'], burn: ['🔥', '# kişi yanarak öldü'], drown: ['🌊', '# kişi boğuldu'] }[cause];
+    if (L) this._note(h.tribe, L[0], L[1], 'k' + cause);
+    if (tr.pop <= 0 && !tr.gone && tr.age > 0) { tr.gone = true; this._note(h.tribe, '💀', 'yok oldu'); }
   }
 
   // ---------------------------------------------------------------- felaketler
@@ -458,7 +510,10 @@ export class World {
     }
     for (const h of this.humans) if (!h.dead && Math.hypot(h.x - hx, h.z - hz) < 6.5) this._kill(h, 'burn');
     for (let i = this.houses.length - 1; i >= 0; i--) {
-      const o = this.houses[i]; if (Math.hypot(o.x - hx, o.z - hz) < 5) this.destroyHouse(i);
+      const o = this.houses[i]; if (Math.hypot(o.x - hx, o.z - hz) < 5) this.destroyHouse(i, 'meteor');
+    }
+    for (let i = this.farms.length - 1; i >= 0; i--) {
+      const f = this.farms[i]; if (Math.hypot(f.x - hx, f.z - hz) < R + 1) this.destroyFarm(i, 'meteor');
     }
     for (let cz = z0; cz < z1; cz++) for (let cx = x0; cx < x1; cx++) {
       const d = Math.hypot(cx + 0.5 - gx, cz + 0.5 - gz), c = cz * N + cx;
@@ -480,7 +535,8 @@ export class World {
         if (this.cellH(cx, cz) < SEA + 0.2) continue;
         if (this.soil[c] !== SOIL.LAVA) {
           this.soil[c] = SOIL.LAVA; this.auto[c] = 0; this.removeTree(c); this.markCell(cx, cz);
-          if (this.houseAt[c] >= 0) this.destroyHouse(this.houseAt[c]);
+          if (this.houseAt[c] >= 0) this.destroyHouse(this.houseAt[c], 'lava');
+          if (this.farmAt[c] >= 0) this.destroyFarm(this.farmAt[c], 'lava');
         }
       }
   }
@@ -512,7 +568,7 @@ export class World {
   // Yürüyemeyen / geçersiz yerde (ev içi, su, lav) kalan insanı kurtarır. blk: engele toslama süresi
   _unstick(h, dt) {
     h.ut = (h.ut || 0) + dt; if (h.moving) h.wk = (h.wk || 0) + dt;
-    if (h.state === ST.WALK || h.state === ST.CHOPWALK || h.state === ST.BUILDWALK) h.ws = (h.ws || 0) + dt;   // yürümeye çalışıp yerinden kıpırdayamayanlar da sayılır
+    if (h.state === ST.WALK || h.state === ST.CHOPWALK || h.state === ST.BUILDWALK || h.state === ST.FARMWALK) h.ws = (h.ws || 0) + dt;   // yürümeye çalışıp yerinden kıpırdayamayanlar da sayılır
     if (h.ut < 0.5) return;
     h.pt = (h.pt || 0) + h.ut; h.ut = 0;
     if (h.bx0 === undefined) { h.bx0 = h.bx1 = h.x; h.bz0 = h.bz1 = h.z; }
@@ -529,6 +585,7 @@ export class World {
     h.blk = 0; h.bx0 = undefined; h.pt = 0; h.wk = 0; h.ws = 0;
     if (!s) return;
     this.fx('puff', h.x, h.y + 0.3, h.z, 1);
+    if (h.state === ST.FARMWALK || h.state === ST.FARM) this._cancelFarm(h);
     h.x = h.tx = s.x; h.z = h.tz = s.z; h.y = this.getHeight(s.x, s.z); h.state = ST.IDLE; h.think = 0.3; h.charge = false;
     this.fx('puff', h.x, h.y + 0.3, h.z, 1);
   }
@@ -608,7 +665,8 @@ export class World {
   _birth(a, b) {
     const x = (a.x + b.x) / 2, z = (a.z + b.z) / 2;
     if (this.spawnHuman(x, z, a.tribe, 0)) {
-      a.cd = b.cd = 30 + rnd() * 25;
+      const fed = this.tribes[a.tribe].food > 2 ? 0.65 : 1;   // bol yiyecek olan köyde bebekler daha sık doğar
+      a.cd = b.cd = (30 + rnd() * 25) * fed;
       this.fx('heart', x, this.getHeight(x, z) + 0.8, z, 1);
     }
   }
@@ -621,6 +679,7 @@ export class World {
         const d = Math.hypot(e.x - h.x, e.z - h.z);
         if (d < 1.25) {
           e.hp -= 16 + rnd() * 14; e.flash = 1; h.flash = Math.max(h.flash, 0.3);
+          this._warNote(h.tribe, e.tribe);
           this.fx('spark', e.x, e.y + 0.4, e.z, 1);
           h.state = ST.IDLE; h.charge = false;
         } else {
@@ -630,8 +689,9 @@ export class World {
       }
     }
     if (h.age < 16) { this._wander(h, 6); return; }
-    const cap = 4 + tr.houses * 4;
-    const needHouse = tr.pop + 1 >= 3 + tr.houses * 4;
+    const per = 4 + (tr.era >= 3 ? 1 : 0) + (tr.era >= 4 ? 1 : 0);   // sanayi ve modern çağda aynı evde daha çok kişi yaşar
+    const cap = 4 + tr.houses * per + tr.farms * 2;
+    const needHouse = tr.pop + 1 >= 3 + tr.houses * per;
     if (h.cd <= 0 && tr.pop < cap && h.age > 20 && h.age < h.life * 0.65 && this.humans.length < MAXHUM) {
       const m = this._nearest(h, 2.6, 1);
       if (m) { this._birth(h, m); return; }
@@ -646,6 +706,23 @@ export class World {
         h.buildCell = cell; tr.building++;
         h.tx = (cell % N) - HALF + 0.5; h.tz = ((cell / N) | 0) - HALF + 0.5;
         h.state = ST.BUILDWALK; return;
+      }
+    }
+    if (tr.era >= 1 && (!needHouse || h.wood >= 3 || rnd() < 0.25)) {   // çiftçilik: ekim, hasat ya da yeni tarla
+      const f = this._findFarmWork(h, tr);
+      if (f) {
+        f.claim = 1; h.farm = f; h.job = f.st === 2 ? 3 : 2;
+        h.tx = f.x + (rnd() - 0.5) * 0.5; h.tz = f.z + (rnd() - 0.5) * 0.5;
+        h.state = ST.FARMWALK; return;
+      }
+      if (tr.houses > 0 && this.season !== 3 && this.farms.length < MAXFARM && tr.food < 60 &&
+          tr.farms + tr.fbuild < Math.min(18, 1 + Math.floor(tr.pop / 3.5)) && tr.fbuild < 1 + Math.floor(tr.pop / 12)) {
+        const cell = this._findFarmSpot(tr, h);
+        if (cell >= 0) {
+          h.farmCell = cell; tr.fbuild++; h.job = 1;
+          h.tx = (cell % N) - HALF + 0.5; h.tz = ((cell / N) | 0) - HALF + 0.5;
+          h.state = ST.FARMWALK; return;
+        }
       }
     }
     if (h.wood < 3 && (needHouse || rnd() < 0.2)) {
@@ -710,14 +787,34 @@ export class World {
           h.timer -= dt; h.fxT += dt;
           if (h.fxT > 0.3) { h.fxT = 0; this.fx('dust', h.x, h.y + 0.2, h.z, 1); }
           const c = h.buildCell;
-          if (c < 0 || this.houseAt[c] >= 0 || this.fire[c] > 0 || this.cellH(c % N, (c / N) | 0) < SEA + 0.8) { this._cancelBuild(h); break; }
+          if (c < 0 || this.houseAt[c] >= 0 || this.farmAt[c] >= 0 || this.fire[c] > 0 || this.cellH(c % N, (c / N) | 0) < SEA + 0.8) { this._cancelBuild(h); break; }
           if (h.timer <= 0) {
-            this.createHouse(c, h.tribe, false);
-            const tr = this.tribes[h.tribe]; tr.building = Math.max(0, tr.building - 1);
+            const tr = this.tribes[h.tribe];
+            const kind = tr.era >= 3 && tr.fact < Math.min(8, Math.floor(tr.houses / 8) + (tr.era >= 4 ? 1 : 0)) ? 1 : 0;   // sanayide her ~8 evde bir fabrika
+            this.createHouse(c, h.tribe, false, kind);
+            if (kind) this._note(h.tribe, '🏭', '# fabrika kurdu', 'fact');
+            tr.building = Math.max(0, tr.building - 1);
             h.buildCell = -1; h.wood -= 3;
             this.fx('puff', h.x, h.y + 0.5, h.z, 1);
             h.state = ST.IDLE; h.think = 0.5;
           }
+          break;
+        }
+        case ST.FARMWALK: {
+          const f = h.farm;
+          if (f && (f.dead || (h.job === 3 ? f.st !== 2 : f.st !== 0))) { this._cancelFarm(h); break; }
+          const r = this._move(h, dt);
+          if (r === 1) { h.state = ST.FARM; h.fxT = 0; h.timer = h.job === 3 ? 2.4 : h.job === 1 ? 2.6 : 1.8; }
+          else if (r < 0) this._cancelFarm(h);
+          break;
+        }
+        case ST.FARM: {
+          h.timer -= dt; h.fxT += dt;
+          if (h.fxT > 0.35) { h.fxT = 0; this.fx('dust', h.x, h.y + 0.2, h.z, 1); }
+          const f = h.farm;
+          if (f && (f.dead || (h.job === 3 ? f.st !== 2 : f.st !== 0))) { this._cancelFarm(h); break; }
+          if (h.farmCell >= 0 && (this.houseAt[h.farmCell] >= 0 || this.farmAt[h.farmCell] >= 0 || this.fire[h.farmCell] > 0)) { this._cancelFarm(h); break; }
+          if (h.timer <= 0) this._finishFarm(h);
           break;
         }
       }
@@ -734,6 +831,197 @@ export class World {
     h.buildCell = -1; h.state = ST.IDLE; h.think = 0.4;
   }
 
+  // ---------------------------------------------------------------- tarlalar & çiftçilik
+  // Tarlalar zeminin üstüne çizilir; ekin evreleri: 0 boş, 1 büyüyor (g: 0..1), 2 olgun. Mevsim büyümeyi belirler.
+  _farmable(cx, cz) {
+    if (cx < 3 || cz < 3 || cx > N - 4 || cz > N - 4) return false;
+    const c = cz * N + cx;
+    if (this.soil[c] !== SOIL.GRASS || this.treeT[c] || this.houseAt[c] >= 0 || this.farmAt[c] >= 0 || this.fire[c] > 0) return false;
+    const h = this.cellH(cx, cz);
+    return h > 1.2 && h < 9 && this.cellRange(cx, cz) <= 0.7;
+  }
+  _findFarmSpot(tr, h) {
+    const R = 3 + Math.sqrt(tr.houses + tr.farms) * 2.2;
+    const ax = tr.houses ? tr.cx : h.x, az = tr.houses ? tr.cz : h.z;
+    let best = -1, bs = 1e9;
+    for (let t = 0; t < 18; t++) {
+      const cx = Math.floor(ax + HALF + (rnd() - 0.5) * 2 * R), cz = Math.floor(az + HALF + (rnd() - 0.5) * 2 * R);
+      if (!this._farmable(cx, cz)) continue;
+      const c = cz * N + cx;
+      let adj = 0;
+      if (this.farmAt[c - 1] >= 0) adj++; if (this.farmAt[c + 1] >= 0) adj++; if (this.farmAt[c - N] >= 0) adj++; if (this.farmAt[c + N] >= 0) adj++;
+      const s = Math.hypot(cx + 0.5 - HALF - ax, cz + 0.5 - HALF - az) - adj * 1.3 + rnd() * 2;   // tarlalar kümelensin
+      if (s < bs) { bs = s; best = c; }
+    }
+    return best;
+  }
+  // en yakın boş (sahiplenilmemiş) tarla: hasat öncelikli; kışın ekim yapılmaz
+  _findFarmWork(h, tr) {
+    if (!tr.farms) return null;
+    let best = null, bd = 400;
+    for (const f of this.farms) {
+      if (f.tribe !== h.tribe || f.claim || f.prog < 1) continue;
+      if (f.st === 1 || (f.st === 0 && this.season === 3)) continue;
+      const d = (f.x - h.x) * (f.x - h.x) + (f.z - h.z) * (f.z - h.z) - (f.st === 2 ? 60 : 0);
+      if (d < bd) { bd = d; best = f; }
+    }
+    return best;
+  }
+  createFarm(cell, tribe) {
+    if (this.farms.length >= MAXFARM || this.farmAt[cell] >= 0 || this.houseAt[cell] >= 0) return -1;
+    const cx = cell % N, cz = (cell / N) | 0, tr = this.tribes[tribe];
+    const f = { x: cx - HALF + 0.5, z: cz - HALF + 0.5, y: this.cellH(cx, cz), cell, tribe, st: 0, g: 0, prog: 0, claim: 0, dead: false };
+    this.farms.push(f); this.farmAt[cell] = this.farms.length - 1; tr.farms++;
+    this.markCell(cx, cz);
+    this.fx('dust', f.x, f.y + 0.2, f.z, 1);
+    if (tr.farms === 1) this._note(tribe, '🌱', 'ilk tarlasını açtı');
+    else { const m = [3, 6, 10, 16]; if (tr.mF < m.length && tr.farms >= m[tr.mF]) { this._note(tribe, '🌾', tr.farms + ' tarlaya ulaştı'); tr.mF++; } }
+    return this.farms.length - 1;
+  }
+  destroyFarm(idx, cause) {
+    const f = this.farms[idx]; if (!f) return;
+    f.dead = true; f.claim = 0;
+    const tr = this.tribes[f.tribe]; tr.farms--;
+    this.farmAt[f.cell] = -1;
+    const last = this.farms.pop();
+    if (last !== f) { this.farms[idx] = last; this.farmAt[last.cell] = idx; }
+    this.markCell(f.cell % N, (f.cell / N) | 0);
+    const L = { fire: ['🔥', '# tarla yandı'], meteor: ['☄️', '# tarla meteorla yok oldu'], lava: ['🌋', '# tarla lavda kaldı'], flood: ['🌊', '# tarla sular altında kaldı'] }[cause];
+    if (L) this._note(f.tribe, L[0], L[1], 'fl' + cause);
+  }
+  _cancelFarm(h) {
+    const tr = this.tribes[h.tribe];
+    if (h.farmCell >= 0) tr.fbuild = Math.max(0, tr.fbuild - 1);
+    if (h.farm) h.farm.claim = 0;
+    h.farm = null; h.farmCell = -1; h.job = 0; h.state = ST.IDLE; h.think = 0.4;
+  }
+  _finishFarm(h) {
+    const tr = this.tribes[h.tribe], f = h.farm;
+    if (h.job === 1) {   // yeni tarla aç ve hemen ek
+      const c = h.farmCell; tr.fbuild = Math.max(0, tr.fbuild - 1); h.farmCell = -1;
+      if (this._farmable(c % N, (c / N) | 0)) {
+        const i = this.createFarm(c, h.tribe);
+        if (i >= 0 && this.season !== 3) { this.farms[i].st = 1; this.farms[i].g = 0; }
+      }
+    } else if (f && !f.dead && h.job === 2 && f.st === 0 && this.season !== 3) {
+      f.st = 1; f.g = 0; this.fx('dust', f.x, f.y + 0.3, f.z, 1);
+    } else if (f && !f.dead && h.job === 3 && f.st === 2) {
+      f.st = 0; f.g = 0;
+      tr.food += 5 + tr.era; tr.kn += 2; tr.harv++; tr.hAll++;
+      this.fx('puff', f.x, f.y + 0.5, f.z, 1);
+      if (tr.hAll === 1) this._note(h.tribe, '🧺', 'ilk hasadını yaptı');
+    }
+    if (f) f.claim = 0;
+    h.farm = null; h.job = 0; h.state = ST.IDLE; h.think = 0.4;
+  }
+  _farmTick(dt) {
+    const fs = this.farms; if (!fs.length) return;
+    const g = (this.season >= 0 ? SEASON_GROW[this.season] : 1) * (this.raining ? 1.25 : 1) * dt / GROW_T;
+    for (const f of fs) {
+      if (f.prog < 1) f.prog = Math.min(1, f.prog + dt / 1.2);
+      if (f.st === 1) { f.g += g; if (f.g >= 1) { f.g = 1; f.st = 2; } }
+    }
+  }
+  // zemini artık tarıma uygun olmayan (boyanmış, lav, su) tarlaları kaldırır
+  _farmCheck() {
+    for (let i = this.farms.length - 1; i >= 0; i--) {
+      const f = this.farms[i];
+      if (this.soil[f.cell] !== SOIL.GRASS || this.houseAt[f.cell] >= 0 || this.cellH(f.cell % N, (f.cell / N) | 0) < SEA + 0.6) this.destroyFarm(i, '');
+    }
+  }
+  // Mevsim ana döngüden bildirilir: hasat özeti, kış donu, sonbahar şenliği
+  setSeason(s) {
+    if (s === this.season) return;
+    const prev = this.season; this.season = s;
+    if (prev < 0) return;
+    for (const t of this.tribes) {
+      if (t.pop <= 0) continue;
+      if (t.harv > 0) { this._note(t.id, '🧺', SEASON_LOC[prev] + ' ' + t.harv + ' hasat yaptı'); t.harv = 0; }
+      if (s === 3 && t.farms) {
+        let lost = 0;
+        for (const f of this.farms) if (f.tribe === t.id && f.st === 1 && f.g < 0.6) { f.st = 0; f.g = 0; lost++; }
+        if (lost) this._note(t.id, '❄️', 'kış bastırdı: ' + lost + ' tarladaki ekin dondu');
+      } else if (s === 0 && t.farms >= 2) this._note(t.id, '🌱', 'ekim zamanı: tarlalar sürülüyor');
+      else if (s === 2 && t.farms >= 3 && t.pop >= 10) {
+        this._note(t.id, '🎉', 'Hasat Şenliği düzenledi'); t.kn += 12;
+        for (const h of this.humans) if (!h.dead && h.tribe === t.id && rnd() < 0.3) this.fx('heart', h.x, h.y + 0.8, h.z, 1);
+      }
+    }
+  }
+
+  // ---------------------------------------------------------------- çağlar & köy günlüğü
+  _note(ti, ico, text, key) {
+    const tr = ti >= 0 ? this.tribes[ti] : null, L = this.log;
+    if (key) {
+      for (let k = L.length - 1; k >= 0 && k >= L.length - 6; k--) {
+        const e = L[k];
+        if (e.key === key && e.tribe === ti && this.simTime - e.t < 12) {
+          e.n++; e.t = this.simTime; e.msg = text.replace('#', e.n); e.day = this.day; e.tod = this.tod;
+          if (this.onNote) this.onNote(e, true);
+          return e;
+        }
+      }
+    }
+    const e = { id: ++this.logId, t: this.simTime, day: this.day, tod: this.tod, tribe: ti, who: tr ? tribeTitle(tr) : '', ico, msg: text.replace('#', 1), key: key || '', n: 1 };
+    L.push(e); if (L.length > 300) L.shift();
+    if (this.onNote) this.onNote(e, false);
+    return e;
+  }
+  logGlobal(ico, text) { return this._note(-1, ico, text); }
+  _warNote(a, b) {
+    const k = a < b ? a * 8 + b : b * 8 + a;
+    if (this._wn[k] !== undefined && this.simTime - this._wn[k] < 90) return;
+    this._wn[k] = this.simTime;
+    this._note(a, '⚔️', tribeTitle(this.tribes[b]) + ' ile savaşıyor');
+  }
+  // bir sonraki çağın koşulları (arayüz için): [{k, v, need}]
+  eraNeeds(t) {
+    const nx = ERAS[t.era + 1]; if (!nx) return null;
+    return [
+      { k: 'Bilgi', v: Math.floor(t.kn), need: nx.kn }, { k: 'Nüfus', v: t.pop, need: nx.pop },
+      { k: 'Ev', v: t.houses, need: nx.houses }, { k: 'Tarla', v: t.farms, need: nx.farms },
+    ];
+  }
+  _advanceEra(t) {
+    t.era++;
+    const e = ERAS[t.era];
+    const txt = [
+      '', "Tarım Çağı'na geçti! İnsanlar tarla açmaya başladı", "Demir Çağı'na geçti! Köy kasabaya dönüştü, evler taşa çevrildi",
+      "Sanayi Çağı'na geçti! Fabrikalar kuruluyor, kasaba şehir oldu", "Modern Çağ'a geçti! Gökdelenler yükseliyor",
+    ][t.era];
+    this._note(t.id, e.i, txt);
+    this.fx('era', t.cx, this.getHeight(t.cx, t.cz), t.cz, t.era);
+  }
+  _tribeTick(dt) {
+    for (const t of this.tribes) {
+      if (t.pop <= 0) continue;
+      t.age += dt;
+      t.kn += dt * (0.4 + Math.sqrt(t.pop) * 0.55) * (1 + Math.min(t.farms, 8) * 0.06 + (t.food > 0 ? 0.15 : 0));
+      if (t.food > 0) t.food = Math.max(0, t.food - t.pop * 0.012 * dt);
+      const nx = ERAS[t.era + 1];
+      if (nx && t.kn >= nx.kn && t.pop >= nx.pop && t.houses >= nx.houses && t.farms >= nx.farms) this._advanceEra(t);
+      const mh = [5, 10, 20, 40, 80], mp = [10, 25, 50, 100, 200];
+      if (t.mH < mh.length && t.houses >= mh[t.mH]) { this._note(t.id, '🏠', mh[t.mH] + ' eve ulaştı'); t.mH++; }
+      if (t.mP < mp.length && t.pop >= mp[t.mP]) { this._note(t.id, '👥', 'nüfusu ' + mp[t.mP] + ' oldu'); t.mP++; }
+    }
+  }
+  // Evler kabile çağına doğru tek tek yükseltilir (köy gözümüzün önünde gelişir); sanayi evleri baca tüttürür
+  _eraTick() {
+    const hs = this.houses, n = hs.length;
+    if (!n) return;
+    let up = 0;
+    const s0 = (rnd() * n) | 0;
+    for (let k = 0; k < n && up < 2; k++) {
+      const o = hs[(s0 + k) % n];
+      if (o.prog >= 1 && o.era < this.tribes[o.tribe].era) { o.era++; o.up = 1; up++; this.fx('puff', o.x, o.y + 0.6, o.z, 1); }
+    }
+    let sm = 0;   // parçacık havuzunu doldurmasın: tick başına en çok 8 baca
+    for (let k = 0; k < n && sm < 8; k++) {
+      const o = hs[(s0 + k * 7) % n];
+      if (o.prog >= 1 && (o.kind === 1 || o.era >= 3) && rnd() < (o.kind === 1 ? 0.8 : 0.35)) { sm++; this.fx('smoke', o.x + 0.2, o.y + (o.kind === 1 ? 1.5 : 1.2), o.z, 1); }
+    }
+  }
+
   // ---------------------------------------------------------------- yangın & doğa
   _updateFire(dt) {
     const b = this.burning;
@@ -748,13 +1036,15 @@ export class World {
         for (let q = 0; q < 4; q++) {
           const nb = nbs[q];
           if (nb < 0 || nb >= N * N || (q < 2 && ((nb / N) | 0) !== cz)) continue;
-          if ((this.treeT[nb] || this.houseAt[nb] >= 0) && this.fire[nb] <= 0 && rnd() < dt * 0.9) this.ignite(nb);
+          const fa = this.farmAt[nb];
+          if ((this.treeT[nb] || this.houseAt[nb] >= 0 || (fa >= 0 && this.farms[fa].st > 0)) && this.fire[nb] <= 0 && rnd() < dt * 0.9) this.ignite(nb);
         }
       }
       if (f <= 0) {
         this.fire[cell] = 0;
         if (this.treeT[cell]) this.removeTree(cell);
-        if (this.houseAt[cell] >= 0) this.destroyHouse(this.houseAt[cell]);
+        if (this.houseAt[cell] >= 0) this.destroyHouse(this.houseAt[cell], 'fire');
+        if (this.farmAt[cell] >= 0) this.destroyFarm(this.farmAt[cell], 'fire');
         if (y > SEA + 0.3 && this.soil[cell] !== SOIL.LAVA && this.soil[cell] !== SOIL.SNOW) this.soil[cell] = SOIL.ASH;
         this.markCell(cx, cz);
         b[k] = b[b.length - 1]; b.pop();
@@ -806,13 +1096,17 @@ export class World {
       r3(h.x), r3(h.z), r3(h.tx), r3(h.tz), h.state, r3(h.timer), h.tribe, r3(h.age), r3(h.life), r3(h.hp),
       h.wood, r3(h.cd), r3(h.ang), r3(h.phase), h.skin, h.chopCell, h.buildCell, h.charge ? 1 : 0,
     ]);
+    for (const a of humans) if (a[4] >= ST.FARMWALK) a[4] = ST.IDLE;   // tarla işi kayda yazılmaz (nesne bağı)
     return {
       v: 1, simTime: this.simTime, raining: this.raining, war: this.war,
       H: _b64enc(H16), soil: _b64enc(this.soil), auto: _b64enc(this.auto),
       tc: _b64enc(tc), tt: _b64enc(tt), ts: _b64enc(ts), tb: _b64enc(tb), bc: _b64enc(bc), bv: _b64enc(bv),
       humans,
-      houses: this.houses.map(o => [o.cell, o.tribe, r3(o.rot), r3(o.prog)]),
-      tribes: this.tribes.map(t => [t.cx, t.cz]),
+      houses: this.houses.map(o => [o.cell, o.tribe, r3(o.rot), r3(o.prog), o.era, o.kind]),
+      tribes: this.tribes.map(t => [t.cx, t.cz, t.era, r3(t.kn), r3(t.food), r3(t.age), t.hAll, t.harv, t.mH, t.mP, t.mF, t.gone ? 1 : 0]),
+      farms: this.farms.map(f => [f.cell, f.tribe, f.st, r3(f.g), r3(f.prog)]),
+      log: this.log.slice(-150).map(e => [r3(e.t), e.day, r3(e.tod), e.tribe, e.who, e.ico, e.msg, e.n, e.key]),
+      logId: this.logId,
     };
   }
   // Başarılıysa true. Hatalı/eksik veride dünyaya dokunmadan false döner.
@@ -838,17 +1132,36 @@ export class World {
       this.simTime = +d.simTime || 0; this.natAcc = 0;
       this.raining = !!d.raining; this.war = d.war !== false;
       this.tribes.length = 0;
-      for (let i = 0; i < d.tribes.length && i < MAXTRIBE; i++)
-        this.tribes.push({ id: i, pop: 0, houses: 0, building: 0, cx: d.tribes[i][0], cz: d.tribes[i][1] });
+      for (let i = 0; i < d.tribes.length && i < MAXTRIBE; i++) {
+        const a = d.tribes[i], t = this._mkTribe(i, a[0], a[1]);
+        if (a.length > 2) {   // eski kayıtlarda yalnızca konum vardır
+          t.era = clamp(a[2] | 0, 0, ERAS.length - 1); t.kn = +a[3] || 0; t.food = +a[4] || 0; t.age = +a[5] || 0;
+          t.hAll = a[6] | 0; t.harv = a[7] | 0; t.mH = a[8] | 0; t.mP = a[9] | 0; t.mF = a[10] | 0; t.gone = !!a[11];
+        }
+        this.tribes.push(t);
+      }
 
       this.houses.length = 0; this.houseAt.fill(-1);
-      for (const [cell, tribe, rot, prog] of d.houses) {
+      for (const [cell, tribe, rot, prog, era, kind] of d.houses) {
         if (cell < 0 || cell >= NN || !this.tribes[tribe] || this.houses.length >= MAXHOUSE) continue;
-        const cx = cell % N, cz = (cell / N) | 0;
-        this.houses.push({ x: cx - HALF + 0.5, z: cz - HALF + 0.5, y: this.cellH(cx, cz), cell, tribe, rot, prog });
+        const cx = cell % N, cz = (cell / N) | 0, tr = this.tribes[tribe];
+        this.houses.push({ x: cx - HALF + 0.5, z: cz - HALF + 0.5, y: this.cellH(cx, cz), cell, tribe, rot, prog, era: era === undefined ? tr.era : era, kind: kind | 0, up: 0 });
         this.houseAt[cell] = this.houses.length - 1;
-        this.tribes[tribe].houses++;
+        tr.houses++; if (kind === 1) tr.fact++;
       }
+
+      this.farms.length = 0; this.farmAt.fill(-1);
+      for (const [cell, tribe, st, g, prog] of d.farms || []) {
+        if (cell < 0 || cell >= NN || !this.tribes[tribe] || this.farms.length >= MAXFARM || this.farmAt[cell] >= 0 || this.houseAt[cell] >= 0) continue;
+        const cx = cell % N, cz = (cell / N) | 0;
+        this.farms.push({ x: cx - HALF + 0.5, z: cz - HALF + 0.5, y: this.cellH(cx, cz), cell, tribe, st: st | 0, g: +g || 0, prog: +prog || 0, claim: 0, dead: false });
+        this.farmAt[cell] = this.farms.length - 1;
+        this.tribes[tribe].farms++;
+      }
+      this.log.length = 0; this._wn = {}; this.season = -1;
+      for (const a of d.log || []) this.log.push({ id: 0, t: a[0], day: a[1], tod: a[2], tribe: a[3], who: a[4], ico: a[5], msg: a[6], n: a[7], key: a[8] });
+      this.logId = d.logId | 0;
+      for (const e of this.log) if (!e.id) e.id = ++this.logId;
 
       this.humans.length = 0;
       for (const a of d.humans) {
@@ -857,6 +1170,7 @@ export class World {
           x: a[0], z: a[1], y: this.getHeight(a[0], a[1]), tx: a[2], tz: a[3], state: a[4], timer: a[5], tribe: a[6],
           age: a[7], life: a[8], hp: a[9], wood: a[10], cd: a[11], ang: a[12], phase: a[13], think: Math.random() * 0.8,
           flash: 0, moving: false, skin: a[14], dead: false, chopCell: a[15], buildCell: a[16], charge: !!a[17], fxT: 0,
+          farm: null, farmCell: -1, job: 0,
         };
         this.humans.push(h);
         const tr = this.tribes[h.tribe]; tr.pop++;
@@ -874,9 +1188,11 @@ export class World {
     this.simTime += dt;
     this._buildHash();
     this._updateHumans(dt);
-    for (const o of this.houses) if (o.prog < 1) o.prog = Math.min(1, o.prog + dt / 0.7);
+    for (const o of this.houses) { if (o.prog < 1) o.prog = Math.min(1, o.prog + dt / 0.7); if (o.up > 0) o.up = Math.max(0, o.up - dt * 1.4); }
+    this._tribeTick(dt);
+    this._farmTick(dt);
     this._updateFire(dt);
     this.natAcc += dt;
-    if (this.natAcc >= 0.5) { this.natAcc = 0; this._natureTick(); }
+    if (this.natAcc >= 0.5) { this.natAcc = 0; this._natureTick(); this._farmCheck(); this._eraTick(); }
   }
 }

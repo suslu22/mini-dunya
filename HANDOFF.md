@@ -109,6 +109,26 @@ Ana menüde artık **üç mod kartı**: Simülasyon Modu · Detaylı Mod · **�
 - **Tooltip sistemi** (main.js, "tooltip" bölümü + `#tip` CSS): `data-tip="Başlık|Açıklama|Kısayol"` taşıyan her öğenin üstüne gelince (yalnız fare; dokunmatikte kapalı) yuvarlatılmış kutu çıkar. Eski `title` özellikleri üstüne gelince otomatik `data-tip`'e çevrilir. Ada arayüzünde `czTip(başlık, açıklama, kısayol)` ve `czItemTip(id)` (cozy_ui.js) yardımcıları; hotbar, HUD düğmeleri, istatistik hapı, çanta/dükkân/tezgâh/rehber/hediye/ev/pano ögeleri ve Kayıtlar düğmeleri ipucu taşır. Yeni arayüz öğesi eklerken `data-tip` eklemeyi unutma.
 - Henüz gerçek cihazda/odaklı pencerede ölçülmedi: Ada Modu FPS'i (ada 160×160, ~300–450 ağaç), izometrik görünümde evlerin kamerayı kapatması (Q/R ile dön), dokunmatik joystick hissi.
 
+## Güncelleme: ses, mevsim/hava, Simülasyon modunda çağlar-tarla-günlük
+Ortak kural: `build.mjs` `src/detail.js, cozy.js, climate.js, audio.js` dosyalarını `strip()` edip (import/export silinir) `sim.js`'ten sonra tek kapsama yapıştırır; **üst düzey isimler benzersiz olmalı** (önekler: `AU` ses, `CL` iklim, `z`/`c`/`cz` Ada, `d` Detaylı, `v`/`V` köy günlüğü). Mantık dosyalarının üst düzeyinde `main.js`'te tanımlanan `const`'lara dokunma (TDZ).
+
+### Ses ve müzik (`src/audio.js`)
+- Prosedürel WebAudio: sfx (`auSfx(ad, ses)`, konumlu `auAt(ad, x, z, ses)`), ortam sesleri (rüzgâr, yağmur, dalga, kuş, cırcır), üretken müzik. Ayarlar panelinde ana/müzik/efekt ses seviyeleri. Ses bağlamı ilk kullanıcı etkileşiminde açılır.
+
+### Mevsim ve hava (`src/climate.js`, `CL`)
+- 4 mevsim (ilkbahar/yaz/sonbahar/kış) × hava (açık, yağmur, kar, fırtına, sis); tüm modlarda ortak. `CL.season/weather/temp`, `CL.lockS` / `CL.lockW` mevsimi/havayı sabitler (ayar düğmeleri `#segS`, `#segX`), kayıtta `game.cl`. Renk, gökyüzü, ağaç yaprağı, kar örtüsü shader uniform'ları (`SEAS…`) ile verilir. `CL.onSeason/onWeather` toast + ses + (Simülasyon modunda) köy günlüğüne yazar.
+- Ada: yağmur ekinleri sular, kışın kar. Detaylı mod: mevsim etkileri kendi dosyasında (`detail.js`).
+
+### Simülasyon (klasik) modu: çağlar, tarla, günlük (`sim.js`, `village.js`)
+- **Çağlar** `ERAS`: Taş → Tarım → Demir → Sanayi → Modern, eşikler bilgi (`kn`) + nüfus/ev/tarla. Bilgi `_tribeTick`te birikir (`kn += dt*(0.4+√pop*0.55)*(1+min(tarla,8)*0.06+…)`); yaklaşık Tarım 0:30–1 dk, Demir ~3 dk, Sanayi ~6 dk, Modern ~9–12 dk oyun süresi. Eşikleri değiştirirsen `test_era.mjs` (12 dk'da çağ ≥3 bekler) ve `era_try` benzeri bir betikle hızı yeniden ölç: taban nüfus ~10 dk'da 900'e (MAXHUM) patlıyor.
+- Köy adı `tribeTitle(t)` (Kırmızı Köy → Kasaba (çağ ≥2) → Şehir (çağ ≥3)). Köy alanları: `{era,kn,farms,fbuild,fact,food,age,harv,hAll,gone,mH,mP,mF}` (`_mkTribe`). Evler `era` ve `kind` (1 = fabrika) taşır; `_eraTick` yarım saniyede en çok 2 evi yükseltir, bacalardan duman çıkarır.
+- **Tarla** `farms[]` + `farmAt` (Int16Array, `SOIL.FARM=7` sanal toprak): durum 0 boş / 1 büyüyor / 2 olgun; büyüme `SEASON_GROW` (ilkbahar 1.0, yaz 1.35, sonbahar 0.55, kış 0) × `GROW_T`. İnsan durumları `ST.FARMWALK/ST.FARM`, iş `job` 1 yeni tarla / 2 ekim / 3 hasat. Kışın ekim durur, kış başında genç ekinler donar; yangın ekinli tarlalara yayılır. Üst sınır `MAXFARM=320`; yiyecek `tr.food` doğum hızını (×0.65 bekleme) ve nüfus tavanını artırır.
+- **Günlük** `world.log` (bellekte son 300, kayıtta son 150): `{id,t,day,tod,tribe,who,ico,msg,key,n}`; `key` taşıyan satırlar 12 sn içinde birleşir (`#` yer tutucu sayıdır: "# tarla açtı"). `world.onNote(e, merged)` arayüze bildirir; `world.day/tod/season` ana döngüde (`main.js` frame) yazılır.
+- Arayüz (`src/village.js`, `detailParts` içinde ham eklenir): solda canlı akış `#vfeed` (en çok 5 satır, çağ atlamaları büyük), 📜 düğmesi / **J** tuşu günlük penceresi `#vlog` (köy kartları: çağ, nüfus/ev/tarla/fabrika/yiyecek, ilerleme çubuğu, "Sonraki: … Bilgi x/y"; karta dokununca filtre, 📍 köye git). Yalnızca Simülasyon modunda görünür.
+- Görünüm: tarla toprağı kahverengi (`PALS` + `SOIL_CH[7]`), ekinler `cropM` (tarla başına 9 bitki, yeşil → altın), ev çağına göre duvar rengi/boyu (`ERA_*`), Modern evler düz çatılı, fabrikalar gri/geniş (kışın çatıda kar). Çağ atlayınca `fx 'era'` (altın parçacıklar + fanfar).
+- Kayıt: evler `[cell,tribe,rot,prog,era,kind]`, köyler `[cx,cz,era,kn,food,age,hAll,harv,mH,mP,mF,gone]`, `farms`, `log`, `logId`. Eski kayıtlar (`[cx,cz]` köyler, çağsız evler) yüklenir. **Kayıt dosyalarını depoya koyma.**
+- Test: `node test_era.mjs` (çağ, tarla tutarlılığı, günlük, kayıt turu + eski biçim, kış donu).
+
 ## Yayın (GitHub)
 - Depo: https://github.com/suslu22/mini-dunya (herkese açık, dal: `main`). Oyun adresi: **https://suslu22.github.io/mini-dunya/**
 - `main`'e her push'ta `.github/workflows/pages.yml` çalışır: `node build.mjs` → `dist/` GitHub Pages'e yüklenir (~1 dk). `dist/` git'te yok (`.gitignore`), yerelde `node build.mjs` ile üretilir.

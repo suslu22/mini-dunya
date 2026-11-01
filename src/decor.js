@@ -96,7 +96,7 @@ function decorBuild() {
     const wx = cx - HALF + 0.5, wz = cz - HALF + 0.5, d = Math.hypot(wx - tx, wz - tz);
     if (d > R) continue;
     const cell = cz * N + cx;
-    if (world.soil[cell] !== SOIL.GRASS || world.treeT[cell] || world.houseAt[cell] >= 0 || world.fire[cell] > 0) continue;
+    if (world.soil[cell] !== SOIL.GRASS || world.treeT[cell] || world.houseAt[cell] >= 0 || world.farmAt[cell] >= 0 || world.fire[cell] > 0) continue;
     const h = world.cellH(cx, cz);
     if (h < SEA + 0.55 || h > 11 || world.cellRange(cx, cz) > 1.1) continue;
     if (DEC.blocked && DEC.blocked(cx, cz)) continue;

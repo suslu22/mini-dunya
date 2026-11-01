@@ -51,11 +51,11 @@ scene.add(sun, sun.target);
 const hexRGB = (h) => { const c = new THREE.Color(h); return [c.r, c.g, c.b]; };
 const PALS = {
   low: {
-    col: ['#79c14b', '#ecd89d', '#f3f8ff', '#8f9099', '#9c7449', '#ff6a1f', '#6e655d'].map(hexRGB),
+    col: ['#79c14b', '#ecd89d', '#f3f8ff', '#8f9099', '#9c7449', '#ff6a1f', '#6e655d', '#9a5f2c'].map(hexRGB),
     hi: hexRGB('#a5ba4c'), lo: hexRGB('#4fa23c'), deep: hexRGB('#1a5778'),
   },
   real: {
-    col: ['#5f8d38', '#d3c18f', '#eef3f8', '#7d7a74', '#86663f', '#ff6a1f', '#4d4540'].map(hexRGB),
+    col: ['#5f8d38', '#d3c18f', '#eef3f8', '#7d7a74', '#86663f', '#ff6a1f', '#4d4540', '#7d4b22'].map(hexRGB),
     hi: hexRGB('#8c9a44'), lo: hexRGB('#3f7a2e'), deep: hexRGB('#10394f'),
   },
 };
@@ -79,7 +79,7 @@ function triColor(soil, ny, h, j) {
     const t = clamp(-h / 6, 0, 1) * 0.85;
     r += (DEEPC[0] - r) * t; g += (DEEPC[1] - g) * t; bl += (DEEPC[2] - bl) * t;
   }
-  const m = 0.92 + 0.16 * j;
+  const m = soil === SOIL.FARM ? 0.84 + 0.32 * j : 0.92 + 0.16 * j;   // sürülmüş tarla: belirgin şeritli doku
   _r = r * m; _g = g * m; _b = bl * m;
 }
 
@@ -172,7 +172,7 @@ for (let cj = 0; cj < NCH; cj++) for (let ci = 0; ci < NCH; ci++) {
 /* Gerçekçi mod: köşe başına yumuşak normal + komşu hücrelerle harmanlanan renk + sahte ortam kararması */
 let _vr = 0, _vg = 0, _vb = 0, _nx = 0, _ny = 1, _nz = 0, _w0 = 1, _w1 = 0, _w2 = 0, _w3 = 0;
 // toprak türü → HD doku kanalı: 0 çimen · 1 kum/kar · 2 kaya/lav · 3 toprak/kül
-const SOIL_CH = [0, 1, 1, 2, 3, 2, 3];
+const SOIL_CH = [0, 1, 1, 2, 3, 2, 3, 3];
 function vertShade(vx, vz) {
   const H = world.H, h = H[vz * VN + vx];
   const hl = H[vz * VN + (vx > 0 ? vx - 1 : vx)], hr = H[vz * VN + (vx < VN - 1 ? vx + 1 : vx)];
@@ -185,7 +185,7 @@ function vertShade(vx, vz) {
   for (let dz = -1; dz <= 0; dz++) for (let dx = -1; dx <= 0; dx++) {
     const cx = vx + dx, cz = vz + dz;
     if (cx < 0 || cz < 0 || cx >= N || cz >= N) continue;
-    const sl = world.soil[cz * N + cx];
+    const sl = world.farmAt[cz * N + cx] >= 0 ? SOIL.FARM : world.soil[cz * N + cx];
     triColor(sl, ny, h, jit);
     r += _r; g += _g; b += _b; n++;
     const c = SOIL_CH[sl];
@@ -260,6 +260,7 @@ function fillChunk(ci, cj) {
     const wx = cx - HALF, wz = cz - HALF;
     soil = world.soil[cell]; avg = (ha + hb + hc + hd) * 0.25;
     glow = soil === SOIL.LAVA ? 1 : world.fire[cell] > 0 ? 0.55 : 0;
+    if (world.farmAt[cell] >= 0) soil = SOIL.FARM;
     if (((cx + cz) & 1) === 0) {
       tri(wx, ha, wz, wx, hc, wz + 1, wx + 1, hd, wz + 1, 0);
       tri(wx, ha, wz, wx + 1, hd, wz + 1, wx + 1, hb, wz, 1);
@@ -673,30 +674,76 @@ roofMat.onBeforeCompile = (sh, rd) => {   // çatının yukarı bakan yüzleri k
 const wallM = makeInst(SET0.wall, wallMat, MAXHOUSE, true);
 const roofM = makeInst(SET0.roof, roofMat, MAXHOUSE, true);
 wallM.castShadow = roofM.castShadow = true; wallM.receiveShadow = roofM.receiveShadow = true;
-roofM.instanceMatrix = wallM.instanceMatrix;
 scene.add(wallM, roofM);
 
 const TRIBE_COLS = ['#e8453c', '#3b82f6', '#f2b01e', '#a463f2', '#27c4b0', '#f15bb5', '#8ac926', '#ff8c42'].map(hexRGB);
 const SKINS = ['#f6d3b3', '#e8b48a', '#c98f65', '#8f5c3b', '#f0c8a0'].map(hexRGB);
 
+// Çağa göre ev görünümü: Taş Çağı'nda alçak, sivri çatılı kulübeler → Modern Çağ'da yüksek, düz çatılı apartmanlar.
+const ERA_WALL = [[0.6, 0.47, 0.32], [0.82, 0.74, 0.57], [0.64, 0.64, 0.62], [0.76, 0.4, 0.3], [0.8, 0.84, 0.9]];
+const ERA_SC = [0.82, 0.92, 1.0, 1.06, 1.1], ERA_SY = [0.72, 0.95, 1.08, 1.3, 1.85], ERA_SR = [1.5, 1.0, 0.95, 0.9, 0.4];
+const ERA_GRAY = [0, 0, 0.15, 0.5, 0.65];   // çatının kabile rengi yerine griye kayma oranı
 function updateHouses() {
   const hs = world.houses, n = Math.min(hs.length, MAXHOUSE);
-  const A = wallM.instanceMatrix.array, WC = wallM.instanceColor.array, RC = roofM.instanceColor.array;
+  const A = wallM.instanceMatrix.array, R = roofM.instanceMatrix.array, WC = wallM.instanceColor.array, RC = roofM.instanceColor.array;
   for (let i = 0; i < n; i++) {
-    const o = hs[i], p = o.prog;
-    const e = p >= 1 ? 1 : 1 - Math.pow(1 - p, 3) * (1 - 0.0);
-    const sc = 0.35 + 0.65 * e, sy = 0.2 + 0.8 * e;
+    const o = hs[i], p = o.prog, fac = o.kind === 1, era = Math.min(o.era | 0, 4);
+    const e = p >= 1 ? 1 : 1 - Math.pow(1 - p, 3);
+    const pop = 1 + 0.22 * Math.sin(o.up * Math.PI);   // çağ atlayan ev "zıplar"
+    const sc = (0.35 + 0.65 * e) * (fac ? 1.3 : ERA_SC[era]) * pop;
+    const sy = (0.2 + 0.8 * e) * (fac ? 1.05 : ERA_SY[era]) * pop, sr = (0.2 + 0.8 * e) * (fac ? 0.35 : ERA_SR[era]) * pop;
     const c = Math.cos(o.rot), s = Math.sin(o.rot), k = i * 16;
     A[k] = c * sc; A[k + 1] = 0; A[k + 2] = -s * sc; A[k + 3] = 0;
     A[k + 4] = 0; A[k + 5] = sy; A[k + 6] = 0; A[k + 7] = 0;
     A[k + 8] = s * sc; A[k + 9] = 0; A[k + 10] = c * sc; A[k + 11] = 0;
     A[k + 12] = o.x; A[k + 13] = o.y; A[k + 14] = o.z; A[k + 15] = 1;
+    for (let q = 0; q < 16; q++) R[k + q] = A[k + q];
+    R[k + 5] = sr; R[k + 13] = o.y + 0.55 * (sy - sr);   // çatı, duvarın tepesine otursun
     const j = hash2(o.cell, 7, 1), tc = TRIBE_COLS[o.tribe % TRIBE_COLS.length], q = i * 3;
-    WC[q] = 0.78 + 0.1 * j; WC[q + 1] = 0.7 + 0.08 * j; WC[q + 2] = 0.58;
-    RC[q] = tc[0]; RC[q + 1] = tc[1]; RC[q + 2] = tc[2];
+    const wc = fac ? [0.46, 0.46, 0.5] : ERA_WALL[era], gm = fac ? 0.7 : ERA_GRAY[era], jj = 0.9 + 0.2 * j;
+    WC[q] = wc[0] * jj; WC[q + 1] = wc[1] * jj; WC[q + 2] = wc[2] * jj;
+    RC[q] = tc[0] + (0.5 - tc[0]) * gm; RC[q + 1] = tc[1] + (0.52 - tc[1]) * gm; RC[q + 2] = tc[2] + (0.56 - tc[2]) * gm;
   }
   wallM.count = roofM.count = n;
-  wallM.instanceMatrix.needsUpdate = true; wallM.instanceColor.needsUpdate = true; roofM.instanceColor.needsUpdate = true;
+  wallM.instanceMatrix.needsUpdate = roofM.instanceMatrix.needsUpdate = true;
+  wallM.instanceColor.needsUpdate = true; roofM.instanceColor.needsUpdate = true;
+}
+
+/* ---------------------------------------------------------------- tarlalar (ekinler) */
+// Tarlanın toprağı arazi rengiyle çizilir; üzerindeki ekin sıraları burada. Büyüdükçe boylanır, olgunlaşınca altın rengine döner.
+const CROP_N = 9, CROP_MAX = MAXFARM * CROP_N;
+const cropGeo = isReal
+  ? mergeGeometries([0, 1, 2].map((q) => white(flat(new THREE.ConeGeometry(0.035, 0.4, 4)).rotateZ((q - 1) * 0.28).translate((q - 1) * 0.045, 0.2, 0)))
+      .concat([white(flat(new THREE.CapsuleGeometry(0.028, 0.1, 2, 4)).translate(0, 0.43, 0))]))
+  : white(flat(new THREE.ConeGeometry(0.075, 0.36, 5)).translate(0, 0.18, 0));
+const cropM = makeInst(cropGeo, new THREE.MeshLambertMaterial({ color: 0xffffff, vertexColors: true }), CROP_MAX, true);
+cropM.castShadow = false; cropM.receiveShadow = true;
+scene.add(cropM);
+function updateFarms() {
+  const fs = world.farms, A = cropM.instanceMatrix.array, CC = cropM.instanceColor.array;
+  let m = 0;
+  for (let i = 0; i < fs.length; i++) {
+    const f = fs[i];
+    if (f.st === 0 && f.prog >= 1) continue;   // boş tarla: yalnızca sürülmüş toprak
+    const gr = f.st === 2 ? 1 : f.st === 1 ? f.g : 0, e = Math.min(1, f.prog) * (0.2 + 0.8 * Math.min(1, gr * 1.15));
+    const ripe = f.st === 2 ? 1 : Math.max(0, (gr - 0.7) / 0.3);
+    const rot = hash2(f.cell, 3, 9) < 0.5 ? 0 : Math.PI / 2, c = Math.cos(rot), s = Math.sin(rot);
+    for (let q = 0; q < CROP_N; q++) {
+      if (m >= CROP_MAX) break;
+      const lx = ((q % 3) - 1) * 0.29 + (hash2(f.cell, q, 1) - 0.5) * 0.05, lz = (((q / 3) | 0) - 1) * 0.29 + (hash2(f.cell, q, 2) - 0.5) * 0.05;
+      const wx = f.x + lx * c - lz * s, wz = f.z + lx * s + lz * c;
+      const k = m * 16, sw = 1 + 0.06 * Math.sin(U.uTime.value * 2 + wx * 1.7 + wz * 1.3);
+      A[k] = e * sw; A[k + 1] = 0; A[k + 2] = 0; A[k + 3] = 0;
+      A[k + 4] = 0; A[k + 5] = e * (0.5 + 0.7 * gr); A[k + 6] = 0; A[k + 7] = 0;
+      A[k + 8] = 0; A[k + 9] = 0; A[k + 10] = e * sw; A[k + 11] = 0;
+      A[k + 12] = wx; A[k + 13] = world.getHeight(wx, wz) + 0.02; A[k + 14] = wz; A[k + 15] = 1;
+      const w = 0.9 + 0.2 * hash2(f.cell, q, 3), cq = m * 3;
+      CC[cq] = (0.34 + 0.52 * ripe) * w; CC[cq + 1] = (0.66 + 0.04 * ripe) * w; CC[cq + 2] = (0.2 + 0.02 * ripe) * w;
+      m++;
+    }
+  }
+  cropM.count = m;
+  cropM.instanceMatrix.needsUpdate = true; cropM.instanceColor.needsUpdate = true;
 }
 
 /* ---------------------------------------------------------------- insanlar */
@@ -884,6 +931,10 @@ world.fx = (type, x, y, z, v) => {
       if (Math.random() < v * 3) emit(x + R1() * 0.5, y + 0.9, z + R1() * 0.5, R1() * 0.3, 0.9, R1() * 0.3, 1.4, 0.38, 0.2, 0.2, 0.22, 0.4);
       break;
     }
+    case 'era':   // bir köy çağ atladı: altın ışık patlaması
+      for (let k = 0; k < 44; k++) { const a = Math.random() * 6.283, sp = 1.5 + Math.random() * 3.5; emit(x, y + 0.8, z, Math.cos(a) * sp, 2.5 + Math.random() * 4, Math.sin(a) * sp, 1.4, 0.22, 1, 0.8 + Math.random() * 0.15, 0.25, -4); }
+      auAt('fanfare', x, z, 0.9);
+      break;
     case 'bolt':
       strikeBolt(x, y, z); flashA = 0.65; shakeAmt = Math.max(shakeAmt, 0.12);
       break;
@@ -1564,7 +1615,7 @@ function climateUI() {
 }
 setSeg('segS', '-1', (v) => { CL.lockS = +v; if (CL.lockS >= 0) toast(SEASONS[CL.lockS].i + ' ' + SEASONS[CL.lockS].n + ' sabitlendi'); });
 setSeg('segX', '', (v) => { CL.lockW = v; if (v) { clSetWeather(v, 999); toast(WEATHERS[v].i + ' ' + WEATHERS[v].n); } });
-CL.onSeason = (a, b) => { if (inMenu) return; toast(SEASONS[b].i + ' ' + SEASONS[b].n + ' geldi'); auSfx('bell', 0.55); if (typeof worldNote === 'function') worldNote('season', SEASONS[b].i + ' ' + SEASONS[b].n + ' başladı'); };
+CL.onSeason = (a, b) => { if (inMenu) return; toast(SEASONS[b].i + ' ' + SEASONS[b].n + ' geldi'); auSfx('bell', 0.55); worldNote(SEASONS[b].i, SEASONS[b].n + ' başladı'); };
 CL.onWeather = (a, b) => { if (inMenu || CL.lockW) return; if (b === 'storm') toast('⛈️ Fırtına yaklaşıyor'); else if (b === 'snow') toast('❄️ Kar yağmaya başladı'); else if (b === 'fog') toast('🌫️ Sis çöktü'); };
 climateUI();
 $('timeSpd').oninput = (e) => { timeSpeed = +e.target.value; $('timeSpdV').textContent = timeSpeed === 0 ? 'duruyor' : timeSpeed + '×'; };
@@ -1578,7 +1629,7 @@ function newWorld() {
     cam.ddist = 48;
   }
   tod = 0.33; dayCount = 1; clReset(dayCount - 1 + tod); climateUI();
-  meteors.length = 0; PA.n = 0; lastAuto = Date.now();
+  meteors.length = 0; PA.n = 0; lastAuto = Date.now(); villageReset();
   toast('Yeni dünya hazır');
 }
 $('bNew').onclick = () => { newWorld(); $('settings').hidden = true; };
@@ -1668,6 +1719,7 @@ function loadGame(id) {
   cam.tx = num(c.tx, cam.tx); cam.tz = num(c.tz, cam.tz); cam.ddist = num(c.ddist, 48);
   cam.dyaw = num(c.dyaw, cam.dyaw); cam.dpitch = num(c.dpitch, 0.95);
   meteors.length = 0; PA.n = 0;
+  villageReset();
   buildDock();
   lastAuto = Date.now();
   return true;
@@ -1838,6 +1890,7 @@ function frame() {
   CL.days = coz ? 3 : 2;
   clUpdate(dt, sdt, dayCount - 1 + tod, tod * 24, coz && !inMenu ? { rain: cozy.rainNow, wetDay: cozy.rainDay } : null);
   world.raining = CL.rain > 0.5 || CL.snow > 0.5;   // yağış yangını söndürür
+  world.day = dayCount; world.tod = tod; world.setSeason(CL.season);   // ekinler ve köy günlüğü mevsime/zamana bağlı
   if (CL.boltNow) { CL.boltNow = false; stormBolt(); }
   SEAS.uSnow.value = CL.cover; SEAS.uWet.value = CL.wet;
   SEAS.uGrass.value.set(0, 0, 0);
@@ -1858,6 +1911,7 @@ function frame() {
   treeTimer += dt;
   if ((world.treesDirty && treeTimer > 0.08) || treeTimer > 1.5) { treeTimer = 0; rebuildTrees(); }
   updateHouses();
+  updateFarms();
   updateHumans(realT);
   if (det && !inMenu) detailFrame(dt, realT);
   decorUpdate(dt);

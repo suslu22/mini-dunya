@@ -4,7 +4,7 @@ const strip = (s) => s.replace(/^export /gm, '').replace(/^import .*$/gm, '');
 // Render'dan bağımsız mantık dosyaları; sırayla tek kapsama birleştirilir (import/export satırları ayıklanır)
 const logicFiles = ['src/detail.js', 'src/cozy.js', 'src/climate.js', 'src/audio.js'];
 const detailLogic = logicFiles.map((f) => strip(fs.readFileSync(f, 'utf8'))).join('\n');
-const detailParts = ['src/detail_view.js', 'src/human.js', 'src/detail_ui.js', 'src/cozy_view.js', 'src/cozy_ui.js'].map((f) => fs.readFileSync(f, 'utf8')).join('\n');
+const detailParts = ['src/detail_view.js', 'src/human.js', 'src/detail_ui.js', 'src/cozy_view.js', 'src/cozy_ui.js', 'src/village.js'].map((f) => fs.readFileSync(f, 'utf8')).join('\n');
 const hdSrc = fs.readFileSync('src/hd.js', 'utf8'), decorSrc = fs.readFileSync('src/decor.js', 'utf8');
 const main = fs.readFileSync('src/main.js', 'utf8').replace('//@@HD@@', () => hdSrc).replace('//@@DECOR@@', () => decorSrc).replace('//@@DETAIL@@', () => detailParts);const THREE_VER = '0.170.0';
 const css = `
@@ -14,7 +14,7 @@ html,body{margin:0;height:100%;overflow:hidden;background:#0b1020;font-family:-a
 #hud{position:fixed;inset:0;pointer-events:none;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
 #hud>*{pointer-events:auto}
 .glass{background:rgba(14,20,38,.62);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.14);box-shadow:0 6px 22px rgba(0,0,0,.28)}
-#stats{position:absolute;top:10px;left:10px;display:flex;gap:10px;align-items:center;padding:7px 12px;border-radius:14px;font-size:13px;font-weight:600;white-space:nowrap;max-width:calc(100% - 200px);overflow:hidden}
+#stats{position:absolute;top:10px;left:10px;display:flex;gap:10px;align-items:center;padding:7px 12px;border-radius:14px;font-size:13px;font-weight:600;white-space:nowrap;max-width:calc(100% - 252px);overflow:hidden}
 #fps{display:none;opacity:.7;font-weight:500;font-size:11px}
 #rainBadge{cursor:default}
 #topbtns{position:absolute;top:10px;right:10px;display:flex;gap:6px}
@@ -169,6 +169,26 @@ body.dmode .tool{height:64px}
 .tn.cost{opacity:.85;border-color:rgba(255,255,255,.3)}.tn.lock{opacity:.45}.tn.sel{outline:3px solid #fff;outline-offset:2px}
 #treeInfo{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:10px 4px 0;font-size:13px;line-height:1.45;min-height:48px}#treeInfo span,#treeInfo small{color:#b9c6ea}#treeInfo em{font-style:normal;color:#f2c14e;font-weight:700}
 #treeInfo button{background:#f2c14e;color:#2a1c00;white-space:nowrap}
+#vlog .mbox{width:min(96vw,560px);padding:14px 14px 16px}
+body.dmode #bVlog,body.cmode #bVlog,body.dmode #vfeed,body.cmode #vfeed,body.inmenu #vfeed{display:none!important}
+#vfeed{position:absolute;left:10px;top:58px;display:flex;flex-direction:column;gap:4px;max-width:min(330px,calc(100% - 70px));pointer-events:none!important}
+.vf{--tc:#7fe0b0;background:rgba(14,20,38,.74);border-left:3px solid var(--tc);padding:4px 9px;border-radius:8px;font-size:12px;font-weight:600;line-height:1.35;animation:vfin .25s ease-out,vfout .6s ease-in 9s forwards;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+.vf b{color:var(--tc)}
+.vf.big{font-size:13px;padding:6px 11px;border-left-width:4px;background:rgba(40,30,8,.82)}
+@keyframes vfin{from{opacity:0;transform:translateX(-12px)}to{opacity:1;transform:none}}
+@keyframes vfout{to{opacity:0;transform:translateX(-10px)}}
+.vcards{display:grid;grid-template-columns:repeat(auto-fill,minmax(168px,1fr));gap:7px;margin:0 2px 10px}
+.vc{--tc:#7fe0b0;position:relative;border-radius:12px;padding:7px 9px 8px;background:rgba(255,255,255,.07);border:2px solid transparent;border-left:5px solid var(--tc);cursor:pointer;display:flex;flex-direction:column;gap:2px}
+.vc.sel{border-color:var(--tc);background:rgba(255,255,255,.13)}
+.vc b{font-size:13.5px;color:var(--tc)}.vc span{font-size:12px;font-weight:700}.vc small{font-size:11px;color:#b9c6ea;line-height:1.35}
+.vc .vgo{position:absolute;right:5px;top:5px;width:28px;height:28px;border-radius:8px;border:0;background:rgba(255,255,255,.14);color:#fff;font-size:14px;cursor:pointer;padding:0}
+.vbar{height:6px;border-radius:4px;background:rgba(255,255,255,.12);overflow:hidden;margin:3px 0 1px}.vbar i{display:block;height:100%;background:var(--tc);border-radius:4px}
+.vflt{display:flex;gap:6px;margin:0 2px 8px;flex-wrap:wrap}.vflt button{height:30px;border-radius:9px;border:0;background:rgba(255,255,255,.1);color:#e6ebf8;font-size:12px;font-weight:700;padding:0 10px;cursor:pointer}.vflt button.on{background:#7fe0b0;color:#08231a}
+#vlist{max-height:44vh;overflow:auto;border-radius:12px;background:rgba(255,255,255,.04);padding:2px 8px}
+.vl{padding:6px 2px;border-bottom:1px solid rgba(255,255,255,.08);font-size:12.5px;line-height:1.45}.vl:last-child{border-bottom:0}
+.vl .vt{display:block;font-size:10.5px;color:#8fa0cc;font-weight:600}.vl b{font-weight:800}
+.vl.era{background:linear-gradient(90deg,rgba(242,193,78,.16),transparent);margin:0 -8px;padding-left:8px;padding-right:8px}
+#vlogClose{min-height:36px;border:0;border-radius:12px;background:rgba(255,255,255,.14);color:#fff;font-size:14px;font-weight:700;cursor:pointer;padding:6px 12px}
 #dlog .mbox{width:min(94vw,420px)}#dlogList div{padding:6px 2px;border-bottom:1px solid rgba(255,255,255,.1);font-size:13px}
 /* ---- Ada Modu ---- */
 body:not(.cmode) #czhud,body:not(.cmode) #czm,body:not(.cmode) #clabels,body:not(.cmode) #cfloat,body:not(.cmode) #czfade{display:none!important}
@@ -267,8 +287,9 @@ const html = `<!DOCTYPE html>
 <div id="hud">
   <div id="stats" class="glass"><span id="pop">👥 0</span><span id="houses">🏠 0</span><span id="clock">☀️ 08:00 · Gün 1</span><span id="rainBadge" data-tip="Mevsim ve hava|Mevsim gün sayısına göre değişir; hava ise mevsime göre kendiliğinden gelir. Ayarlardan elle seçebilirsin.">🌸</span><span id="fps"></span></div>
   <div id="dbar" class="glass"></div><div id="dppl" class="glass"></div>
+  <div id="vfeed"></div>
   <div id="dpanel" class="glass" hidden></div><div id="dbpanel" class="glass" hidden></div>
-  <div id="topbtns"><button class="rb glass" id="bPause" data-tip="Duraklat / Devam|Oyunu durdurur ya da kaldığı yerden sürdürür.|P">⏸</button><button class="rb glass" id="bSpeed" style="font-size:13px;font-weight:700" data-tip="Oyun hızı|Zamanı 1×, 2× ve 4× hızlandırır.">1×</button><button class="rb glass" id="bSave" data-tip="Kayıtlar|Oyunu kaydet, kayıt yükle, dosyaya aktar ya da dosyadan içe aktar.">💾</button><button class="rb glass" id="bSet" data-tip="Ayarlar|Grafik kalitesi, FPS göstergesi, gün/gece hızı ve diğer seçenekler.">⚙️</button></div>
+  <div id="topbtns"><button class="rb glass" id="bPause" data-tip="Duraklat / Devam|Oyunu durdurur ya da kaldığı yerden sürdürür.|P">⏸</button><button class="rb glass" id="bSpeed" style="font-size:13px;font-weight:700" data-tip="Oyun hızı|Zamanı 1×, 2× ve 4× hızlandırır.">1×</button><button class="rb glass" id="bVlog" data-tip="Köy günlüğü|Köylerin tarihi: kimin tarla açtığı, hangi çağa geçtiği, savaşlar ve felaketler. Köy kartlarından gelişimlerini izle.|J">📜</button><button class="rb glass" id="bSave" data-tip="Kayıtlar|Oyunu kaydet, kayıt yükle, dosyaya aktar ya da dosyadan içe aktar.">💾</button><button class="rb glass" id="bSet" data-tip="Ayarlar|Grafik kalitesi, FPS göstergesi, gün/gece hızı ve diğer seçenekler.">⚙️</button></div>
   <div id="camBtns"><button class="rb glass" id="bRotL" data-tip="Kamerayı sola çevir|Haritayı sola döndürür.|Q">⟲</button><button class="rb glass" id="bRotR" data-tip="Kamerayı sağa çevir|Haritayı sağa döndürür.|E">⟳</button><button class="rb glass" id="bTilt" data-tip="Kamera eğimi|Kamerayı yukarıdan bakıştan yatay bakışa doğru çevirir.|R / F">⤢</button></div>
   <div id="brush" class="glass"><span>Fırça</span><input id="size" type="range" min="1" max="10" value="4"><span id="sizev">4</span></div>
   <div id="dock" class="glass"><div id="tabs"></div><div id="tools"></div></div>
@@ -325,6 +346,7 @@ const html = `<!DOCTYPE html>
   <div id="treeInfo"></div>
 </div></div>
 <div id="evm" class="modal" hidden><div class="mbox glass"></div></div>
+<div id="vlog" class="modal" hidden><div class="mbox glass"><div class="thd"><b>📜 Köy günlüğü</b><button id="vlogClose">Kapat ✕</button></div><div id="vcards" class="vcards"></div><div id="vflt" class="vflt"></div><div id="vlist"></div></div></div>
 <div id="dlog" class="modal" hidden><div class="mbox glass"><div class="thd"><b>📜 Olay günlüğü</b><button id="logClose">Kapat ✕</button></div><div id="dlogList"></div></div></div>
 <div id="floppy"><svg viewBox="0 0 48 48" width="46" height="46"><path d="M6 6h31l5 5v31a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2z" fill="#a855f7" stroke="#e9d5ff" stroke-width="2" stroke-linejoin="round"/><rect x="13" y="6" width="20" height="13" rx="1.5" fill="#f3e8ff"/><rect x="26" y="9" width="4" height="8" rx="1" fill="#7e22ce"/><rect x="11" y="26" width="26" height="16" rx="2" fill="#6b21a8"/><rect x="15" y="30" width="18" height="2" fill="#d8b4fe"/><rect x="15" y="35" width="12" height="2" fill="#d8b4fe"/></svg></div>
 <div id="menu">
