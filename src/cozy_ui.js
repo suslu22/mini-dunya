@@ -73,7 +73,7 @@ function czHud() {
     '<span' + czTip('Ada puanı: ' + cozy.stars + ' yıldız', 'Ağaç, çiçek, eşya, temizlik ve sakinlerle yükselir. Ayrıntı için Ada Panosu\'na bak.') + '>' + '⭐'.repeat(cozy.stars) + '</span>' +
     '<span' + czTip('Saat', 'Dükkân ' + String(Z_SHOP_OPEN[0]).padStart(2, '0') + ':00–' + Z_SHOP_OPEN[1] + ':00 arası açık. Gece böcekler ve balıklar değişir.') + '>' + (night ? '🌙 ' : '☀️ ') +
     String(hr).padStart(2, '0') + ':' + String(mn).padStart(2, '0') + '</span><span' + czTip('Gün ' + cozy.day, 'Evde uyuyunca yeni güne geçilir; bitkiler büyür, dükkân yenilenir.') + '>Gün ' + cozy.day + '</span>' +
-    (cozy.rainNow ? '<span' + czTip('Yağmur yağıyor', 'Yağmur ektiğin bitkileri kendiliğinden sular.') + '>🌧️</span>' : '') +
+    '<span' + czTip(SEASONS[CL.season].n + ' · ' + WEATHERS[CL.weather].n + ' · ' + Math.round(CL.temp) + '°C', 'Mevsim her 3 günde bir değişir. Yağmur ektiğin bitkileri kendiliğinden sular; kışın kar yağar.') + '>' + SEASONS[CL.season].i + WEATHERS[CL.weather].i + ' ' + Math.round(CL.temp) + '°</span>' +
     '<span' + czTip('Çanta', 'Taşıdığın farklı eşya türü sayısı (en fazla ' + Z_BAG_MAX + '). Çantayı açmak için B tuşuna bas.', 'B') + '>🎒 ' + Object.keys(cozy.bag).length + '/' + Z_BAG_MAX + '</span>';
   if (html !== czStatSig) { czStatSig = html; czStatsEl.innerHTML = html; }
 }
@@ -371,7 +371,7 @@ function cozyNewWorld() {
   try { const s = JSON.parse(localStorage.getItem('minidunya.cozyplayer')); if (s && s.look) { look = s.look; name = String(s.name || ''); } } catch (_) { /* yoksay */ }
   czFirstRun = !look;
   cozy.start((Math.random() * 1e6) | 0, look, name);
-  tod = 8 / 24; dayCount = 1;
+  tod = 8 / 24; dayCount = 1; clReset(dayCount - 1 + tod); climateUI();
   cozySceneReady();
 }
 function cozyLoad(data) {

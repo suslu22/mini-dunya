@@ -30,6 +30,9 @@ const scene = new THREE.Scene();
 scene.fog = new THREE.Fog(0xcfeaff, 150, 520);
 const camera = new THREE.PerspectiveCamera(36, 1, 0.5, 3000);
 const U = { uTime: { value: 0 } };
+// Mevsim ve hava: arazi, çatı ve çim gölgelendiricileri bu değerleri okur (iklim durumu CL, climate.js'te)
+const SEAS = { uSnow: { value: 0 }, uWet: { value: 0 }, uGrass: { value: new THREE.Vector3(1, 1, 1) } };
+const SEAS_GRASS = [[1.04, 1.09, 0.94], [1.0, 0.96, 0.82], [1.32, 0.9, 0.5], [0.93, 0.9, 0.82]];   // çimen rengi çarpanları: ilkbahar, yaz, sonbahar, kış
 let SUNK = 3.0, HEMIK = 1.2;     // stile göre ışık çarpanları
 
 const hemi = new THREE.HemisphereLight(0xbcd8ff, 0x8a7a55, 1.7);
@@ -84,13 +87,14 @@ const terrainMat = new THREE.MeshLambertMaterial({ vertexColors: true });
 terrainMat.onBeforeCompile = (sh) => {
   sh.uniforms.uTime = U.uTime;
   sh.uniforms.uReal = UREAL;
+  sh.uniforms.uSnow = SEAS.uSnow; sh.uniforms.uWet = SEAS.uWet; sh.uniforms.uGrass = SEAS.uGrass;
   sh.uniforms.tTer = HDU.tTer; sh.uniforms.uHD = HDU.uHD; sh.uniforms.uTexel = HDU.uTexel;
   sh.vertexShader = sh.vertexShader
     .replace('#include <common>', '#include <common>\nattribute float glow;\nattribute vec4 soilw;\nvarying float vGlow;\nvarying vec3 vWP;\nvarying vec4 vSW;\nvarying vec3 vNO;')
     .replace('#include <begin_vertex>', '#include <begin_vertex>\nvGlow = glow; vWP = position; vSW = soilw; vNO = normal;');
   sh.fragmentShader = sh.fragmentShader
     .replace('#include <common>', `#include <common>
-      uniform float uTime; uniform float uReal; uniform float uHD; uniform float uTexel; uniform sampler2D tTer;
+      uniform float uTime; uniform float uReal; uniform float uHD; uniform float uTexel; uniform sampler2D tTer; uniform float uSnow; uniform float uWet; uniform vec3 uGrass;
       varying float vGlow; varying vec3 vWP; varying vec4 vSW; varying vec3 vNO;
       float h21(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
       float vn(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
@@ -120,6 +124,14 @@ terrainMat.onBeforeCompile = (sh) => {
           diffuseColor.rgb *= 0.36 + 1.28 * L;
           tG = vec2(h0 - hx, h0 - hz) / (e * 5.0) * 0.11 * (1.0 - side);
         }
+      }
+      {   // mevsim: çimen rengi, ıslak zemin ve kar örtüsü
+        float grn = clamp((diffuseColor.g - max(diffuseColor.r, diffuseColor.b)) * 7.0, 0.0, 1.0);
+        diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * uGrass, grn);
+        diffuseColor.rgb *= 1.0 - 0.22 * uWet;
+        float up = smoothstep(0.6, 0.9, normalize(vNO).y), above = smoothstep(0.05, 0.5, vWP.y);
+        float sn = uSnow * up * above * step(vGlow, 0.01) * smoothstep(0.12, 0.5, vn(vWP.xz * 0.9) * 0.55 + uSnow * 0.6);
+        diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.88, 0.92, 1.0), clamp(sn, 0.0, 1.0));
       }`)
     .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
       if (uReal > 0.5) {
@@ -556,7 +568,7 @@ function updateClouds(dt) {
     const c = cloudData[i];
     c.x += c.sp * dt; if (c.x > 190) c.x = -190;
     const d = Math.hypot(c.x - cp.x, c.y - cp.y, c.z - cp.z);
-    const s = c.s * smooth(0.35 * D, 0.75 * D, d) + 1e-4;
+    const s = c.s * smooth(0.35 * D, 0.75 * D, d) * (i < 6 ? 1 : 0.25 + 0.95 * Math.min(1, CL.cloud * 1.3)) + 1e-4;
     _v3.set(c.x, c.y, c.z); _s3.set(s * 1.5, s * 0.75, s);
     _m4.compose(_v3, _q, _s3); clouds.setMatrixAt(i, _m4);
   }
@@ -595,6 +607,7 @@ oakT.instanceMatrix = oakM.instanceMatrix; pineT.instanceMatrix = pineM.instance
 oakT.castShadow = pineT.castShadow = false;
 scene.add(oakM, pineM, oakT, pineT);
 
+const AUTUMN = [[0.82, 0.3, 0.03], [0.88, 0.58, 0.06], [0.55, 0.12, 0.04], [0.72, 0.66, 0.1]];   // sonbahar yaprak renkleri
 function rebuildTrees() {
   const A = oakM.instanceMatrix.array, AC = oakM.instanceColor.array;
   const B = pineM.instanceMatrix.array, BC = pineM.instanceColor.array;
@@ -624,10 +637,16 @@ function rebuildTrees() {
       if (j2 < 0.07) { r = 0.7; g = 0.28 + j1 * 0.2; b = 0.03; }
       else if (isReal) { r = 0.06 + 0.08 * j1; g = 0.19 + 0.11 * j2; b = 0.035; }
       else { r = 0.05 + 0.12 * j1; g = 0.33 + 0.17 * j2; b = 0.06; }
+      if (CL.w[0] > 0.02 && j1 > 0.72) { const k = CL.w[0] * 0.8; r = lerp(r, 0.8, k); g = lerp(g, 0.42, k); b = lerp(b, 0.52, k); }   // ilkbahar: çiçek açan ağaçlar
+      if (CL.w[2] > 0.02) { const ac = AUTUMN[(j1 * 4) | 0], k = CL.w[2] * 0.92; r = lerp(r, ac[0], k); g = lerp(g, ac[1], k); b = lerp(b, ac[2], k); }
+      if (CL.w[3] > 0.02) { const k = CL.w[3] * 0.88; r = lerp(r, 0.2 + 0.06 * j1, k); g = lerp(g, 0.15 + 0.04 * j2, k); b = lerp(b, 0.11, k); }   // kış: yapraksız dallar
+      if (CL.cover > 0.02) { const k = CL.cover * 0.5; r = lerp(r, 0.62, k); g = lerp(g, 0.66, k); b = lerp(b, 0.7, k); }
     } else {
       if (isReal) { r = 0.02 + 0.025 * j1; g = 0.13 + 0.08 * j2; b = 0.07 + 0.03 * j1; }
       else { r = 0.02 + 0.03 * j1; g = 0.2 + 0.1 * j2; b = 0.1 + 0.03 * j1; }
       if (world.soil[cell] === SOIL.SNOW) { r = lerp(r, 0.6, 0.55); g = lerp(g, 0.66, 0.55); b = lerp(b, 0.68, 0.55); }
+      if (CL.w[2] > 0.02) { const k = CL.w[2] * 0.22; r = lerp(r, 0.2, k); g = lerp(g, 0.22, k); b = lerp(b, 0.05, k); }
+      if (CL.cover > 0.02) { const k = CL.cover * 0.62; r = lerp(r, 0.66, k); g = lerp(g, 0.72, k); b = lerp(b, 0.76, k); }   // karla kaplı çamlar
     }
     carr[co] = r; carr[co + 1] = g; carr[co + 2] = b;
   }
@@ -643,6 +662,14 @@ const wallMat = new THREE.MeshLambertMaterial({ color: 0xffffff, emissive: 0x000
 const roofMat = new THREE.MeshLambertMaterial({ color: 0xffffff, emissive: 0x000000, vertexColors: true });
 hdPatch(wallMat, 'stucco', { sc: 2.2, amt: 0.75, bump: 1.0, id: 'wall' });
 hdPatch(roofMat, 'roof', { sc: 1.8, amt: 0.85, bump: 1.5, id: 'roof' });
+const roofBase = roofMat.onBeforeCompile;
+roofMat.onBeforeCompile = (sh, rd) => {   // çatının yukarı bakan yüzleri kar tutar
+  roofBase(sh, rd);
+  sh.uniforms.uSnow = SEAS.uSnow;
+  sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying float vUpY;').replace('#include <begin_vertex>', '#include <begin_vertex>\nvUpY = normal.y;');
+  sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform float uSnow; varying float vUpY;')
+    .replace('#include <color_fragment>', '#include <color_fragment>\ndiffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.9, 0.93, 1.0), uSnow * smoothstep(0.35, 0.75, vUpY));');
+};
 const wallM = makeInst(SET0.wall, wallMat, MAXHOUSE, true);
 const roofM = makeInst(SET0.roof, roofMat, MAXHOUSE, true);
 wallM.castShadow = roofM.castShadow = true; wallM.receiveShadow = roofM.receiveShadow = true;
@@ -802,6 +829,13 @@ function updateMeteors(dt) {
   if (!meteors.length) meteorMesh.visible = false;
 }
 
+// Fırtınada kamera çevresinde uzaktan çakan yıldırım (yalnızca görüntü ve ses; kimseye zarar vermez)
+function stormBolt() {
+  const a = Math.random() * 6.283, d = 16 + Math.random() * 30, x = cam.x + Math.cos(a) * d, z = cam.z + Math.sin(a) * d;
+  if (Math.abs(x) > HALF - 2 || Math.abs(z) > HALF - 2) return;
+  strikeBolt(x, Math.max(world.getHeight(x, z), SEA), z); flashA = Math.max(flashA, 0.5);
+  auSfx('bolt', 0.9 * (1 - d / 70)); setTimeout(() => auSfx('thunder', 0.8 * (1 - d / 70)), 500 + d * 25);
+}
 let shakeAmt = 0;
 const flashEl = $('flash');
 let flashA = 0;
@@ -875,19 +909,92 @@ const rain = new THREE.LineSegments(rainGeo, rainMat);
 rain.frustumCulled = false; rain.visible = false; scene.add(rain);
 let rainK = 0;
 function updateRain(dt, cx, cz, span) {
-  rainK = lerp(rainK, world.raining ? 1 : 0, 1 - Math.exp(-dt * 1.2));
-  rain.visible = rainK > 0.02; rainMat.opacity = 0.5 * rainK;
+  rainK = CL.rain;
+  rain.visible = rainK > 0.02; rainMat.opacity = (0.5 + 0.15 * CL.storm) * rainK;
   if (!rain.visible) return;
-  const t = U.uTime.value;
+  const t = U.uTime.value, slant = 0.12 + CL.storm * 0.35;
   for (let i = 0; i < RAIN_N; i++) {
     const sx = rainSeed[i * 3], sy = rainSeed[i * 3 + 1], sz = rainSeed[i * 3 + 2];
     const x = cx + (sx - 0.5) * span, z = cz + (sz - 0.5) * span;
     const y = 40 - ((sy * 40 + t * 38) % 40);
     const k = i * 6;
     rainPos[k] = x; rainPos[k + 1] = y; rainPos[k + 2] = z;
-    rainPos[k + 3] = x - 0.12; rainPos[k + 4] = y + 1.1; rainPos[k + 5] = z - 0.05;
+    rainPos[k + 3] = x - slant; rainPos[k + 4] = y + 1.1; rainPos[k + 5] = z - slant * 0.4;
   }
   rainGeo.attributes.position.needsUpdate = true;
+}
+
+/* ---------------------------------------------------------------- kar, yaprak, taç yaprağı, ateş böceği */
+const softTex = (() => {
+  const c = document.createElement('canvas'); c.width = c.height = 32; const g = c.getContext('2d');
+  const gr = g.createRadialGradient(16, 16, 0, 16, 16, 16); gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.5, 'rgba(255,255,255,.65)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = gr; g.fillRect(0, 0, 32, 32); return new THREE.CanvasTexture(c);
+})();
+const SNOW_N = 1100, DRIFT_N = 280;
+function makePts(n, size) {
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(n * 3), 3).setUsage(THREE.DynamicDrawUsage));
+  geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(n * 3).fill(1), 3));
+  const p = new THREE.Points(geo, new THREE.PointsMaterial({ size, map: softTex, vertexColors: true, transparent: true, opacity: 0, depthWrite: false, fog: false }));
+  p.frustumCulled = false; p.visible = false; scene.add(p);
+  return p;
+}
+const snowPts = makePts(SNOW_N, 0.5), driftPts = makePts(DRIFT_N, 0.55);
+const pSeed = new Float32Array(SNOW_N * 4), dSeed = new Float32Array(DRIFT_N * 4);
+for (let i = 0; i < pSeed.length; i++) pSeed[i] = Math.random();
+for (let i = 0; i < dSeed.length; i++) dSeed[i] = Math.random();
+let driftMode = -1;
+function updateAir(dt, cx, cz, span) {
+  const t = U.uTime.value, wind = CL.wind * 2;
+  // kar
+  const sk = CL.snow;
+  snowPts.visible = sk > 0.02; snowPts.material.opacity = 0.95 * sk;
+  if (snowPts.visible) {
+    const n = level >= 3 ? SNOW_N : 520, A = snowPts.geometry.attributes.position.array;
+    snowPts.geometry.setDrawRange(0, n);
+    for (let i = 0; i < n; i++) {
+      const sx = pSeed[i * 4], sy = pSeed[i * 4 + 1], sz = pSeed[i * 4 + 2], ph = pSeed[i * 4 + 3];
+      A[i * 3] = cx + (sx - 0.5) * span + Math.sin(t * 0.8 + ph * 6.28) * 0.9;
+      A[i * 3 + 1] = 32 - ((sy * 32 + t * (2.4 + ph * 1.2)) % 32);
+      A[i * 3 + 2] = cz + (sz - 0.5) * span + Math.cos(t * 0.6 + ph * 6.28) * 0.9;
+    }
+    snowPts.geometry.attributes.position.needsUpdate = true;
+  }
+  // mevsime göre savrulanlar: ilkbahar taç yaprağı, yaz geceleri ateş böceği, sonbahar yaprak
+  const season = CL.season, w = CL.w[season];
+  let vis = season === 3 ? 0 : clamp((w - 0.5) * 2.4, 0, 1);
+  if (season === 1) vis *= nightK;
+  if (CL.snow > 0.3 || level < 3) vis = 0;
+  driftPts.visible = vis > 0.02;
+  if (!driftPts.visible) { driftMode = -1; return; }
+  const mat = driftPts.material, C = driftPts.geometry.attributes.color.array;
+  if (driftMode !== season) {
+    driftMode = season;
+    mat.blending = season === 1 ? THREE.AdditiveBlending : THREE.NormalBlending; mat.size = season === 1 ? 0.42 : season === 0 ? 0.4 : 0.6; mat.needsUpdate = true;
+    for (let i = 0; i < DRIFT_N; i++) {
+      const h = dSeed[i * 4 + 3];
+      if (season === 0) { C[i * 3] = 1; C[i * 3 + 1] = 0.72 + 0.2 * h; C[i * 3 + 2] = 0.82; }
+      else if (season === 1) { C[i * 3] = 0.75; C[i * 3 + 1] = 1; C[i * 3 + 2] = 0.3; }
+      else { const ac = AUTUMN[(h * 4) | 0]; C[i * 3] = ac[0] * 1.15; C[i * 3 + 1] = ac[1] * 1.15; C[i * 3 + 2] = ac[2] * 1.15; }
+    }
+    driftPts.geometry.attributes.color.needsUpdate = true;
+  }
+  mat.opacity = (season === 1 ? 0.95 : 0.85) * vis;
+  const A = driftPts.geometry.attributes.position.array, sp = span * 0.7;
+  for (let i = 0; i < DRIFT_N; i++) {
+    const sx = dSeed[i * 4], sy = dSeed[i * 4 + 1], sz = dSeed[i * 4 + 2], ph = dSeed[i * 4 + 3];
+    const x = cx + (sx - 0.5) * sp, z = cz + (sz - 0.5) * sp, gy = Math.max(world.getHeight(x, z), SEA);
+    let y;
+    if (season === 1) {   // ateş böceği: yere yakın, yavaşça süzülür
+      y = gy + 0.8 + (sy * 2.6) + Math.sin(t * 0.9 + ph * 20) * 0.5;
+      A[i * 3] = x + Math.sin(t * 0.5 + ph * 30) * 1.4; A[i * 3 + 2] = z + Math.cos(t * 0.42 + ph * 17) * 1.4;
+    } else {              // yaprak ve taç yaprağı: yavaş yavaş düşer, rüzgârla savrulur
+      y = gy + 12 - ((sy * 12 + t * (0.7 + ph * 0.8)) % 12);
+      A[i * 3] = x + Math.sin(t * 1.1 + ph * 20) * 1.1 + (12 - (y - gy)) * wind * 0.25; A[i * 3 + 2] = z + Math.cos(t * 0.9 + ph * 13) * 1.1;
+    }
+    A[i * 3 + 1] = y;
+  }
+  driftPts.geometry.attributes.position.needsUpdate = true;
 }
 
 /* ---------------------------------------------------------------- imleç halkası */
@@ -915,6 +1022,7 @@ const C = {
   hemiDaySky: K('#bcd8ff'), hemiNightSky: K('#2a3a7a'), hemiDayGnd: K('#8d7b55'), hemiNightGnd: K('#141828'),
 };
 const tTop = new THREE.Color(), tHor = new THREE.Color(), tTmp = new THREE.Color();
+const SEAS_SKY = [[1.0, 1.02, 1.0], [1.04, 1.0, 0.93], [1.09, 0.97, 0.85], [0.93, 0.98, 1.07]];   // gökyüzü rengi çarpanları
 let nightK = 0;   // 0 gündüz .. 1 gece (ateş ışıkları için)
 function updateSky() {
   const a = (tod - 0.25) * Math.PI * 2;
@@ -922,31 +1030,38 @@ function updateSky() {
   const sy = sunDir.y, day = smooth(-0.08, 0.28, sy), dusk = Math.max(0, 1 - Math.abs(sy) / 0.3);
   tTop.copy(C.nightTop).lerp(C.dayTop, day).lerp(C.duskTop, dusk * 0.55);
   tHor.copy(C.nightHor).lerp(C.dayHor, day).lerp(C.duskHor, dusk * 0.85);
-  const rk = rainK * (0.35 + 0.65 * day);
+  const gray = Math.max(rainK, CL.snow * 0.8, CL.cloud * 0.3);   // yağış ve bulut göğü soldurur
+  const rk = gray * (0.35 + 0.65 * day);
+  let tr = 0, tg = 0, tb = 0;   // mevsim tonu
+  for (let i = 0; i < 4; i++) { const sk = SEAS_SKY[i]; tr += sk[0] * CL.w[i]; tg += sk[1] * CL.w[i]; tb += sk[2] * CL.w[i]; }
+  tTop.multiply(tTmp.setRGB(tr, tg, tb)); tHor.multiply(tTmp.setRGB(tr, tg, tb));
   tTop.lerp(tTmp.copy(C.rainTop).multiplyScalar(0.25 + 0.75 * day), rk * 0.75);
   tHor.lerp(tTmp.copy(C.rainHor).multiplyScalar(0.25 + 0.75 * day), rk * 0.85);
+  tHor.lerp(tTmp.setRGB(0.78, 0.8, 0.84).multiplyScalar(0.2 + 0.8 * day), CL.fog * 0.75);   // sis ufku beyazlatır
   skyMat.uniforms.uTop.value.copy(tTop); skyMat.uniforms.uHor.value.copy(tHor);
   skyMat.uniforms.uSunDir.value.copy(sunDir);
-  skyMat.uniforms.uSunCol.value.copy(C.duskSun).lerp(C.daySun, smooth(0, 0.45, sy)).multiplyScalar(1 - rainK * 0.8);
-  skyMat.uniforms.uStars.value = (1 - day) * (1 - rainK * 0.9);
+  skyMat.uniforms.uSunCol.value.copy(C.duskSun).lerp(C.daySun, smooth(0, 0.45, sy)).multiplyScalar(1 - gray * 0.8);
+  skyMat.uniforms.uStars.value = (1 - day) * (1 - gray * 0.9) * (1 - CL.fog * 0.8);
   skyMat.uniforms.uDay.value = day;
   scene.fog.color.copy(tHor);
-  scene.fog.near = lerp(150, 60, rainK); scene.fog.far = lerp(520, 300, rainK);
-  if (sy > 0) { lightDir.copy(sunDir); sun.color.copy(C.duskSun).lerp(C.daySun, smooth(0, 0.45, sy)); sun.intensity = SUNK * smooth(0, 0.3, sy) * (1 - 0.72 * rainK); }
-  else { lightDir.copy(sunDir).negate(); sun.color.copy(C.moon); sun.intensity = 1.1 * smooth(0, 0.3, -sy) * (1 - 0.4 * rainK); }
+  const fd = gameMode === 'cozy' ? 30 : clamp(cam.dist, 30, 140);   // sis, kameranın uzaklığına göre koyulaşır
+  scene.fog.near = lerp(lerp(150, 60, gray), fd * 0.12, CL.fog); scene.fog.far = lerp(lerp(520, 300, gray), fd * 1.25 + 12, CL.fog);
+  if (sy > 0) { lightDir.copy(sunDir); sun.color.copy(C.duskSun).lerp(C.daySun, smooth(0, 0.45, sy)); sun.intensity = SUNK * smooth(0, 0.3, sy) * (1 - 0.72 * gray) * (1 - 0.35 * CL.fog); }
+  else { lightDir.copy(sunDir).negate(); sun.color.copy(C.moon); sun.intensity = 1.1 * smooth(0, 0.3, -sy) * (1 - 0.4 * gray); }
   hemi.color.copy(C.hemiNightSky).lerp(C.hemiDaySky, day);
   hemi.groundColor.copy(C.hemiNightGnd).lerp(C.hemiDayGnd, day);
-  hemi.intensity = 0.8 + HEMIK * day * (1 - 0.3 * rainK);
+  hemi.intensity = 0.8 + HEMIK * day * (1 - 0.3 * gray);
   const wu = waterMat.uniforms;
-  wu.uDay.value = (0.3 + 0.7 * day) * (1 - 0.3 * rainK);
+  wu.uDay.value = (0.3 + 0.7 * day) * (1 - 0.3 * gray);
   wu.uSunDir.value.copy(sy > 0 ? sunDir : lightDir);
-  wu.uSunCol.value.copy(sy > 0 ? C.daySun : C.moon).multiplyScalar(sy > 0 ? 1 - rainK : 0.35);
+  wu.uSunCol.value.copy(sy > 0 ? C.daySun : C.moon).multiplyScalar(sy > 0 ? 1 - gray : 0.35);
   wu.uSky.value.copy(tHor); wu.uSkyTop.value.copy(tTop);
   const night = 1 - day;
   nightK = night;
   wallMat.emissive.setRGB(0.9 * night * 0.42, 0.62 * night * 0.42, 0.28 * night * 0.42);
   roofMat.emissive.setRGB(0.3 * night * 0.3, 0.2 * night * 0.3, 0.1 * night * 0.3);
   cloudMat.emissive.setRGB(0.16 * day + 0.03, 0.18 * day + 0.04, 0.24 * day + 0.07);
+  cloudMat.color.setScalar(1 - 0.5 * Math.max(CL.storm, CL.rain * 0.7, CL.snow * 0.35, CL.cloud * 0.3));   // yağmur bulutları grileşir
 }
 
 /* ---------------------------------------------------------------- post-process (parlama, tilt-shift, renk) */
@@ -1214,7 +1329,7 @@ function buildDock() {
     b.innerHTML = '<span>' + t.i + '</span>' + t.n + (det ? dToolBadge(t) : '');
     if (TOOL_TIPS[t.id]) b.dataset.tip = t.n + '|' + TOOL_TIPS[t.id];
     b.onclick = () => {
-      if (t.id === 'rain') { world.raining = !world.raining; toast(world.raining ? 'Yağmur başladı' : 'Yağmur durdu'); }
+      if (t.id === 'rain') { clToggleRain(); const wet = CL.weather === 'rain' || CL.weather === 'snow'; toast(wet ? (CL.weather === 'snow' ? 'Kar başladı' : 'Yağmur başladı') : 'Hava açıyor'); }
       else if (t.id === 'time') { tod = (tod + 0.25) % 1; toast('Zaman ileri sarıldı'); }
       else if (det && dToolClick(t)) return;
       else tool = t.id;
@@ -1439,9 +1554,19 @@ function auScene(dt) {
   }
   return {
     mode: inMenu ? 'menu' : gameMode === 'cozy' ? 'cozy' : gameMode === 'detail' ? 'detail' : 'sim',
-    hour: tod * 24, season: 0, rain: world.raining ? 1 : 0, snow: 0, storm: 0, water: auWater, wind: 0.3,
+    hour: tod * 24, season: CL.season, rain: CL.rain, snow: CL.snow, storm: CL.storm, water: auWater, wind: CL.wind,
   };
 }
+/* ---------------------------------------------------------------- mevsim ve hava */
+function climateUI() {
+  document.querySelectorAll('#segS button').forEach((b) => b.classList.toggle('on', +b.dataset.v === CL.lockS));
+  document.querySelectorAll('#segX button').forEach((b) => b.classList.toggle('on', b.dataset.v === CL.lockW));
+}
+setSeg('segS', '-1', (v) => { CL.lockS = +v; if (CL.lockS >= 0) toast(SEASONS[CL.lockS].i + ' ' + SEASONS[CL.lockS].n + ' sabitlendi'); });
+setSeg('segX', '', (v) => { CL.lockW = v; if (v) { clSetWeather(v, 999); toast(WEATHERS[v].i + ' ' + WEATHERS[v].n); } });
+CL.onSeason = (a, b) => { if (inMenu) return; toast(SEASONS[b].i + ' ' + SEASONS[b].n + ' geldi'); auSfx('bell', 0.55); if (typeof worldNote === 'function') worldNote('season', SEASONS[b].i + ' ' + SEASONS[b].n + ' başladı'); };
+CL.onWeather = (a, b) => { if (inMenu || CL.lockW) return; if (b === 'storm') toast('⛈️ Fırtına yaklaşıyor'); else if (b === 'snow') toast('❄️ Kar yağmaya başladı'); else if (b === 'fog') toast('🌫️ Sis çöktü'); };
+climateUI();
 $('timeSpd').oninput = (e) => { timeSpeed = +e.target.value; $('timeSpdV').textContent = timeSpeed === 0 ? 'duruyor' : timeSpeed + '×'; };
 function newWorld() {
   if (gameMode === 'detail') detailNewWorld();
@@ -1452,7 +1577,7 @@ function newWorld() {
     if (t0) { cam.tx = t0.cx; cam.tz = t0.cz; }
     cam.ddist = 48;
   }
-  tod = 0.33; dayCount = 1;
+  tod = 0.33; dayCount = 1; clReset(dayCount - 1 + tod); climateUI();
   meteors.length = 0; PA.n = 0; lastAuto = Date.now();
   toast('Yeni dünya hazır');
 }
@@ -1512,7 +1637,7 @@ function saveGame(id) {
         : { ts: Date.now(), mode: 'sim', pop: world.tribes.reduce((a, t) => a + t.pop, 0), houses: world.houses.length, day: dayCount };
     const data = {
       v: 1, mode: gameMode, colony: det ? colony.toJSON() : null, cozy: coz ? cozy.toJSON() : null, world: world.serialize(),
-      game: { tod, dayCount, timeSpeed, speed, cam: { tx: cam.tx, tz: cam.tz, ddist: cam.ddist, dyaw: cam.dyaw, dpitch: cam.dpitch } },
+      game: { tod, dayCount, timeSpeed, speed, cl: clToJSON(), cam: { tx: cam.tx, tz: cam.tz, ddist: cam.ddist, dyaw: cam.dyaw, dpitch: cam.dpitch } },
     };
     localStorage.setItem(SLOT_PREFIX + id, JSON.stringify(data));
     localStorage.setItem(SLOT_PREFIX + id + '.meta', JSON.stringify(meta));
@@ -1534,6 +1659,7 @@ function loadGame(id) {
   } else if (gameMode !== 'sim') enterMode('sim', false);
   const g = data.game || {}, num = (v, d) => (Number.isFinite(v) ? v : d);
   tod = num(g.tod, 0.33); dayCount = Math.max(1, num(g.dayCount, 1)); timeSpeed = num(g.timeSpeed, 1);
+  CL.days = m === 'cozy' ? 3 : 2; clFromJSON(g.cl, dayCount - 1 + tod); climateUI();
   speed = g.speed === 2 || g.speed === 4 ? g.speed : 1;
   $('bSpeed').textContent = speed + '×';
   $('timeSpd').value = timeSpeed; $('timeSpdV').textContent = timeSpeed === 0 ? 'duruyor' : timeSpeed + '×';
@@ -1709,7 +1835,15 @@ function frame() {
   if (inMenu) cam.dyaw += dt * 0.07;   // menü arkasında ada yavaşça döner
   if (coz && !inMenu) cozyFrame(dt, realT);   // oyuncu, köylüler, nesneler ve kendi kamerası
   else { cozyCamReset(); updateCamera(dt); }
+  CL.days = coz ? 3 : 2;
+  clUpdate(dt, sdt, dayCount - 1 + tod, tod * 24, coz && !inMenu ? { rain: cozy.rainNow, wetDay: cozy.rainDay } : null);
+  world.raining = CL.rain > 0.5 || CL.snow > 0.5;   // yağış yangını söndürür
+  if (CL.boltNow) { CL.boltNow = false; stormBolt(); }
+  SEAS.uSnow.value = CL.cover; SEAS.uWet.value = CL.wet;
+  SEAS.uGrass.value.set(0, 0, 0);
+  for (let i = 0; i < 4; i++) { SEAS.uGrass.value.x += SEAS_GRASS[i][0] * CL.w[i]; SEAS.uGrass.value.y += SEAS_GRASS[i][1] * CL.w[i]; SEAS.uGrass.value.z += SEAS_GRASS[i][2] * CL.w[i]; }
   updateRain(dt, cam.x, cam.z, 70);
+  updateAir(dt, cam.x, cam.z, 70);
   updateSky();
   auFrame(dt, auScene(dt));
   updateClouds(dt);
@@ -1760,7 +1894,7 @@ function frame() {
     else { $('pop').textContent = '👥 ' + world.humans.length; $('houses').textContent = '🏠 ' + world.houses.length; }
     const hh = tod * 24, hr = Math.floor(hh), mn = Math.floor((hh - hr) * 60);
     $('clock').textContent = (tod > 0.23 && tod < 0.77 ? '☀️ ' : '🌙 ') + String(hr).padStart(2, '0') + ':' + String(mn).padStart(2, '0') + ' · Gün ' + dayCount;
-    $('rainBadge').style.display = world.raining ? 'inline' : 'none';
+    $('rainBadge').textContent = clBadge();
   }
   if (accT > 1.5) {
     const avg = accT / frames, fps = frames / accT;
@@ -1783,5 +1917,5 @@ addEventListener('resize', resize);
 $('loading').style.display = 'none';
 window.__started = true;
 showMenu();
-window.__game = { AU, auSfx, auLevel, auUnlock, setTod: (v) => { tod = v; }, world, colony, camera, enterMode, get cozy() { return cozy; }, cv, czOpen, czCloseAll, cozySetMode, cozyTapIso, cozyNewWorld, get inMenu() { return inMenu; }, dSelect, get gameMode() { return gameMode; }, saveGame, loadGame, openSaves,setLevel: (l) => { qualityMode = 'manual'; level = l; applyLevel(); }, setStyle, setQuality, startGame, showMenu, get isReal() { return isReal; }, renderer, cam, toast, setTool: (t) => { tool = t; buildDock(); }, TOOLS, get tool() { return tool; }, HD, DEC, hdApply, get level() { return level; }, buildHuman, lookOf, poseHuman, scene };
+window.__game = { CL, clUpdate, AU, auSfx, auLevel, auUnlock, setTod: (v) => { tod = v; }, world, colony, camera, enterMode, get cozy() { return cozy; }, cv, czOpen, czCloseAll, cozySetMode, cozyTapIso, cozyNewWorld, get inMenu() { return inMenu; }, dSelect, get gameMode() { return gameMode; }, saveGame, loadGame, openSaves,setLevel: (l) => { qualityMode = 'manual'; level = l; applyLevel(); }, setStyle, setQuality, startGame, showMenu, get isReal() { return isReal; }, renderer, cam, toast, setTool: (t) => { tool = t; buildDock(); }, TOOLS, get tool() { return tool; }, HD, DEC, hdApply, get level() { return level; }, buildHuman, lookOf, poseHuman, scene };
 requestAnimationFrame(frame);

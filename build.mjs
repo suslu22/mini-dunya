@@ -1,7 +1,9 @@
 import fs from 'node:fs';
 const sim = fs.readFileSync('src/sim.js', 'utf8').replace(/^export /gm, '');
 const strip = (s) => s.replace(/^export /gm, '').replace(/^import .*$/gm, '');
-const detailLogic = strip(fs.readFileSync('src/detail.js', 'utf8')) + '\n' + strip(fs.readFileSync('src/cozy.js', 'utf8')) + '\n' + strip(fs.readFileSync('src/audio.js', 'utf8'));
+// Render'dan bağımsız mantık dosyaları; sırayla tek kapsama birleştirilir (import/export satırları ayıklanır)
+const logicFiles = ['src/detail.js', 'src/cozy.js', 'src/climate.js', 'src/audio.js'];
+const detailLogic = logicFiles.map((f) => strip(fs.readFileSync(f, 'utf8'))).join('\n');
 const detailParts = ['src/detail_view.js', 'src/human.js', 'src/detail_ui.js', 'src/cozy_view.js', 'src/cozy_ui.js'].map((f) => fs.readFileSync(f, 'utf8')).join('\n');
 const hdSrc = fs.readFileSync('src/hd.js', 'utf8'), decorSrc = fs.readFileSync('src/decor.js', 'utf8');
 const main = fs.readFileSync('src/main.js', 'utf8').replace('//@@HD@@', () => hdSrc).replace('//@@DECOR@@', () => decorSrc).replace('//@@DETAIL@@', () => detailParts);const THREE_VER = '0.170.0';
@@ -14,7 +16,7 @@ html,body{margin:0;height:100%;overflow:hidden;background:#0b1020;font-family:-a
 .glass{background:rgba(14,20,38,.62);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.14);box-shadow:0 6px 22px rgba(0,0,0,.28)}
 #stats{position:absolute;top:10px;left:10px;display:flex;gap:10px;align-items:center;padding:7px 12px;border-radius:14px;font-size:13px;font-weight:600;white-space:nowrap;max-width:calc(100% - 200px);overflow:hidden}
 #fps{display:none;opacity:.7;font-weight:500;font-size:11px}
-#rainBadge{display:none}
+#rainBadge{cursor:default}
 #topbtns{position:absolute;top:10px;right:10px;display:flex;gap:6px}
 #camBtns{position:absolute;right:10px;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;gap:6px}
 .rb{width:42px;height:42px;border-radius:13px;font-size:18px;color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center}
@@ -263,7 +265,7 @@ const html = `<!DOCTYPE html>
 </head><body>
 <canvas id="c"></canvas>
 <div id="hud">
-  <div id="stats" class="glass"><span id="pop">👥 0</span><span id="houses">🏠 0</span><span id="clock">☀️ 08:00 · Gün 1</span><span id="rainBadge">🌧️</span><span id="fps"></span></div>
+  <div id="stats" class="glass"><span id="pop">👥 0</span><span id="houses">🏠 0</span><span id="clock">☀️ 08:00 · Gün 1</span><span id="rainBadge" data-tip="Mevsim ve hava|Mevsim gün sayısına göre değişir; hava ise mevsime göre kendiliğinden gelir. Ayarlardan elle seçebilirsin.">🌸</span><span id="fps"></span></div>
   <div id="dbar" class="glass"></div><div id="dppl" class="glass"></div>
   <div id="dpanel" class="glass" hidden></div><div id="dbpanel" class="glass" hidden></div>
   <div id="topbtns"><button class="rb glass" id="bPause" data-tip="Duraklat / Devam|Oyunu durdurur ya da kaldığı yerden sürdürür.|P">⏸</button><button class="rb glass" id="bSpeed" style="font-size:13px;font-weight:700" data-tip="Oyun hızı|Zamanı 1×, 2× ve 4× hızlandırır.">1×</button><button class="rb glass" id="bSave" data-tip="Kayıtlar|Oyunu kaydet, kayıt yükle, dosyaya aktar ya da dosyadan içe aktar.">💾</button><button class="rb glass" id="bSet" data-tip="Ayarlar|Grafik kalitesi, FPS göstergesi, gün/gece hızı ve diğer seçenekler.">⚙️</button></div>
@@ -291,6 +293,11 @@ const html = `<!DOCTYPE html>
   <div class="row">Tilt-shift (maket görünümü)</div>
   <div class="seg"><button data-tilt="on">Açık</button><button data-tilt="off">Kapalı</button></div>
   <div class="shint">Tilt-shift, parlama ve HD dokular Yüksek ve üzeri kalitede çalışır.</div>
+  <div class="row">Mevsim</div>
+  <div class="seg wrap" id="segS"><button data-v="-1">Oto</button><button data-v="0" title="İlkbahar">🌸</button><button data-v="1" title="Yaz">☀️</button><button data-v="2" title="Sonbahar">🍂</button><button data-v="3" title="Kış">❄️</button></div>
+  <div class="row">Hava</div>
+  <div class="seg wrap" id="segX"><button data-v="">Oto</button><button data-v="clear" title="Açık">☀️</button><button data-v="cloudy" title="Bulutlu">☁️</button><button data-v="rain" title="Yağmur">🌧️</button><button data-v="storm" title="Fırtına">⛈️</button><button data-v="snow" title="Kar">❄️</button><button data-v="fog" title="Sis">🌫️</button></div>
+  <div class="shint">Otomatikte mevsim gün sayısıyla ilerler (her mevsim 2 gün; Ada Modu'nda 3 gün).</div>
   <div class="row">Savaşlar</div>
   <div class="seg" id="segW"><button data-v="on">Açık</button><button data-v="off">Kapalı</button></div>
   <div class="row">Gün/gece hızı: <span id="timeSpdV">1×</span></div>

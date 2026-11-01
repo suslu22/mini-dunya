@@ -55,9 +55,10 @@ function flowerGeometry() {
 }
 const tuftMat = new THREE.MeshLambertMaterial({ color: 0xffffff, vertexColors: true, side: THREE.DoubleSide });
 tuftMat.onBeforeCompile = (sh) => {
-  sh.uniforms.uTime = U.uTime;
+  sh.uniforms.uTime = U.uTime; sh.uniforms.uGrass = SEAS.uGrass;
   sh.vertexShader = sh.vertexShader
-    .replace('#include <common>', '#include <common>\nuniform float uTime;')
+    .replace('#include <common>', '#include <common>\nuniform float uTime; uniform vec3 uGrass;')
+    .replace('#include <color_vertex>', '#include <color_vertex>\nvColor.xyz *= uGrass;')
     .replace('#include <begin_vertex>', `#include <begin_vertex>
       vec3 ip = vec3(instanceMatrix[3]);
       float sw = position.y * position.y * 0.55;
@@ -105,14 +106,14 @@ function decorBuild() {
     for (let i = 0; i < cnt && n < DEC_MAX; i++) {
       const j1 = hash2(cx, cz, 40 + i * 7), j2 = hash2(cx, cz, 41 + i * 7), j3 = hash2(cx, cz, 42 + i * 7), j4 = hash2(cx, cz, 43 + i * 7);
       const x = cx - HALF + j1, z = cz - HALF + j2, y = world.getHeight(x, z) - 0.02;
-      const s = (0.7 + 0.7 * j3) * fade * sc + 1e-4, ang = j4 * 6.2832, c = Math.cos(ang) * s, sn = Math.sin(ang) * s, o = n * 16, q = n * 3;
+      const s = (0.7 + 0.7 * j3) * fade * sc * (1 - 0.8 * CL.cover) + 1e-4, ang = j4 * 6.2832, c = Math.cos(ang) * s, sn = Math.sin(ang) * s, o = n * 16, q = n * 3;
       TA[o] = c; TA[o + 1] = 0; TA[o + 2] = -sn; TA[o + 3] = 0; TA[o + 4] = 0; TA[o + 5] = s * (0.85 + 0.5 * j1); TA[o + 6] = 0; TA[o + 7] = 0;
       TA[o + 8] = sn; TA[o + 9] = 0; TA[o + 10] = c; TA[o + 11] = 0; TA[o + 12] = x; TA[o + 13] = y; TA[o + 14] = z; TA[o + 15] = 1;
       const m = 1.12 + 0.35 * (j2 - 0.5);
       TC[q] = _r * m; TC[q + 1] = _g * m * 1.04; TC[q + 2] = _b * m * 0.9;
       n++;
     }
-    if (DEC.flowers && gameMode !== 'cozy' && nf < FLW_MAX &&hash2(cx, cz, 77) < 0.045 * (0.4 + k * 0.35)) {
+    if (DEC.flowers && gameMode !== 'cozy' && nf < FLW_MAX &&hash2(cx, cz, 77) < 0.045 * (0.4 + k * 0.35) * CL.flowers * (1 - CL.cover)) {
       const j1 = hash2(cx, cz, 78), j2 = hash2(cx, cz, 79), x = cx - HALF + j1, z = cz - HALF + j2, y = world.getHeight(x, z) - 0.02;
       const s = (0.85 + 0.5 * hash2(cx, cz, 80)) * fade * sc + 1e-4, o = nf * 16, q = nf * 3, col = FLW_COLS[(hash2(cx, cz, 81) * FLW_COLS.length) | 0];
       FA[o] = s; FA[o + 1] = 0; FA[o + 2] = 0; FA[o + 3] = 0; FA[o + 4] = 0; FA[o + 5] = s; FA[o + 6] = 0; FA[o + 7] = 0;
