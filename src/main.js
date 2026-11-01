@@ -1940,6 +1940,7 @@ function frame() {
     renderer.setRenderTarget(rt); renderer.render(scene, camera);
     renderer.setRenderTarget(null); renderer.render(postScene, postCam);
   } else renderer.render(scene, camera);
+  if (coz && czPhotoReq) czPhotoShoot();
   // HUD & otomatik kalite
   hudTimer += dt; frames++; accT += rawDt;
   if (hudTimer > 0.4) {

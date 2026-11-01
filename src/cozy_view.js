@@ -87,6 +87,7 @@ const C_KIND_PARTS = () => {
   K.f_fence = [gB(0.07, 0.62, 0.07, '#d9c29a', -0.46, 0.31, 0), gB(0.07, 0.62, 0.07, '#d9c29a', 0.46, 0.31, 0), gB(1.0, 0.07, 0.05, '#e8d4ac', 0, 0.5, 0), gB(1.0, 0.07, 0.05, '#e8d4ac', 0, 0.28, 0)];
   K.f_pot = [gC(0.22, 0.15, 0.3, '#c4733f', 0, 0.15, 0, 12), gC(0.23, 0.23, 0.04, '#d68350', 0, 0.3, 0, 12), gS(0.24, '#4f9a35', 0, 0.5, 0, 1, 0.9, 1), gS(0.14, '#6fc14a', 0.12, 0.62, 0.05), gS(0.06, '#ff6b8b', 0.1, 0.72, 0.1), gS(0.06, '#ffd93b', -0.1, 0.66, -0.05)];
   K.f_fountain = [gC(0.95, 1.0, 0.32, '#aab0b8', 0, 0.16, 0, 20), gC(0.8, 0.8, 0.04, '#7fc8ff', 0, 0.32, 0, 20), gC(0.14, 0.2, 0.75, '#c8ccd2', 0, 0.55, 0, 10), gC(0.42, 0.2, 0.1, '#b8bec6', 0, 0.95, 0, 14), gC(0.34, 0.34, 0.02, '#7fc8ff', 0, 1.0, 0, 14), gS(0.09, '#d8f0ff', 0, 1.15, 0)];
+  K.f_trophy = [gC(0.2, 0.24, 0.06, '#8a6a1c', 0, 0.03, 0, 14), gC(0.05, 0.07, 0.28, '#d9b032', 0, 0.2, 0, 8), gC(0.22, 0.1, 0.26, '#ffd34d', 0, 0.46, 0, 14), gC(0.24, 0.22, 0.03, '#fff0a0', 0, 0.6, 0, 14), gS(0.06, '#fff0a0', 0.27, 0.46, 0), gS(0.06, '#fff0a0', -0.27, 0.46, 0)];
   K.f_rug = [gB(1.0, 0.02, 1.0, '#c9503c', 0, 0.012, 0), gB(0.82, 0.022, 0.82, '#f1d9a0', 0, 0.014, 0), gB(0.6, 0.024, 0.6, '#3f8a8a', 0, 0.016, 0)];
   return K;
 };
@@ -298,7 +299,7 @@ function cPosePlayer(t, dt) {
       case 'shake': aL = aR = -2.4 + Math.sin(t * 20) * 0.3; break;
       case 'wave': aR = -2.7 + Math.sin(t * 9) * 0.4; hy = Math.sin(t * 3) * 0.2; tool = ''; break;
     }
-  } else if (p.fish) { aR = -0.95 + Math.sin(t * 1.3) * 0.05; aL = -0.7; tool = 'rod'; }
+  } else if (p.fish) { aR = -0.95 + Math.sin(t * 1.3) * 0.05 + (p.fish.st === 'fight' ? Math.sin(t * 18) * 0.1 : 0); aL = -0.7; tool = 'rod'; }
   poseHuman(v, { lL, lR, aL, aR, lean, hy, tool, t, ph: 0, mood: 80 }, dt);
   v.root.position.set(p.x, p.y + bob * v.root.scale.y, p.z);
   v.root.rotation.y = p.ang;
@@ -319,9 +320,9 @@ function cPoseVillager(vl, v, t, dt) {
 const cBugMat = new THREE.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, roughness: 0.6, side: THREE.DoubleSide });
 function cBugMesh(B) {
   const g = new THREE.Group();
-  const cols = { kelebek: '#ff9a3c', gece: '#d9cfae', ugur: '#e23b3b', cekirge: '#7bc24a', karinca: '#2a2018', atesboc: '#e8ff7a', circir: '#6b4524', gergedan: '#3a2a1c' };
+  const cols = { kelebek: '#ff9a3c', gece: '#d9cfae', ugur: '#e23b3b', cekirge: '#7bc24a', karinca: '#2a2018', atesboc: '#e8ff7a', circir: '#6b4524', gergedan: '#3a2a1c', ari: '#ffd23b', tirtil: '#8fd24a', orumcek: '#2a2a30', kisguve: '#d8ecff' };
   const c = cols[B.id] || '#888';
-  if (B.id === 'kelebek' || B.id === 'gece') {
+  if (B.id === 'kelebek' || B.id === 'gece' || B.id === 'kisguve') {
     const body = new THREE.Mesh(cMerge([gS(0.025, '#2a2018', 0, 0, 0, 1, 1, 3)]), cBugMat); g.add(body);
     for (const sx of [-1, 1]) {
       const wg = new THREE.Group(); const wing = new THREE.Mesh(cMerge([{ g: new THREE.CircleGeometry(0.1, 8), c, p: [sx * 0.08, 0, 0], r: [-Math.PI / 2, 0, 0], s: [1, 0.8, 1] }]), cBugMat);
@@ -356,14 +357,14 @@ function cUpdateFishing(t, dt) {
   const f = cozy.p.fish;
   cBobber.visible = cLine.visible = !!f;
   if (!f) { cRing.visible = false; return; }
-  const dip = f.st === 'bite' ? -0.06 - Math.abs(Math.sin(t * 22)) * 0.08 : f.st === 'cast' ? Math.max(0, 0.9 - f.t * 2) : Math.sin(t * 2.1) * 0.015;
+  const dip = f.st === 'bite' ? -0.06 - Math.abs(Math.sin(t * 22)) * 0.08 : f.st === 'fight' ? -0.05 - Math.abs(Math.sin(t * 13)) * 0.09 : f.st === 'cast' ? Math.max(0, 0.9 - f.t * 2) : Math.sin(t * 2.1) * 0.015;
   const bx = f.x, bz = f.z, by = SEA + 0.02 + dip;
   cBobber.position.set(bx, by, bz);
   const a = cozy.p, hx = a.x + Math.sin(a.ang) * 0.55, hz = a.z + Math.cos(a.ang) * 0.55, hy = a.y + 1.55;
   const arr = cLineGeo.attributes.position.array; arr[0] = hx; arr[1] = hy; arr[2] = hz; arr[3] = bx; arr[4] = by; arr[5] = bz; cLineGeo.attributes.position.needsUpdate = true;
   cRing.position.set(bx, SEA + 0.03, bz);
   if (f.st === 'bite') cRingT = Math.min(cRingT, 0.0);
-  cRingT += dt; cRing.visible = f.st !== 'cast'; const k = (cRingT * 0.9) % 1; cRing.scale.setScalar(0.6 + k * 1.6); cRing.material.opacity = (1 - k) * (f.st === 'bite' ? 0.9 : 0.35);
+  cRingT += dt; cRing.visible = f.st !== 'cast'; const k = (cRingT * 0.9) % 1; cRing.scale.setScalar(0.6 + k * 1.6); cRing.material.opacity = (1 - k) * (f.st === 'bite' || f.st === 'fight' ? 0.9 : 0.35);
 }
 
 /* ---------------------------------------------------------------- kamera */
@@ -491,13 +492,15 @@ function cozyWheel(e) {
 function cozyKey(e) {
   if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return false;
   const k = e.key.toLowerCase();
-  if (k === 'escape') { if (czModalOpen) { czCloseAll(); return true; } return false; }
+  if (k === 'escape') { if (czPhotoOn) { czPhotoSet(false); return true; } if (czModalOpen) { czCloseAll(); return true; } return false; }
   if (czModalOpen) {
     if ((k === 'b' || k === 'tab') && czKind === 'bag') { czCloseAll(); return true; }
     if (k === 'v' && czKind === 'cat') { czCloseAll(); return true; }
     return false;
   }
   if (czBlocked()) return false;
+  if (k === 'g') { czPhotoSet(!czPhotoOn); return true; }
+  if (czPhotoOn && (k === ' ' || k === 'enter')) { if (!e.repeat) czPhotoReq = true; return true; }
   if (k === 'p') { togglePause(); return true; }
   if (k === ' ' || k === 'e' || k === 'enter' || k === 'f') { if (!e.repeat) czPress(); return true; }
   if (k >= '1' && k <= '6') { cozy.selectTool(+k - 1); czSyncUI(); return true; }
@@ -598,6 +601,9 @@ function cozyEvents() {
       case 'catch': { auSfx('catch'); const it = Z_ITEMS[e.id]; if (it) cFloat(it.i + ' ' + it.n + '!', e.x, e.z, cozy.p.y + 0.6); world.fx('heart', e.x, cozy.p.y + 1.5, e.z, 1); break; }
       case 'newday': auSfx('bell', 0.7); cToastQ.push('☀️ Yeni bir gün başladı — Gün ' + cozy.day); czRefresh(); break;
       case 'arrive': czArrive(); break;
+      case 'fight': auSfx('reel'); break;
+      case 'hook': auSfx(e.ok ? 'pop' : 'error', 0.7); cFloat(e.ok ? 'İyi! ✔' : 'Iska ✖', cozy.p.x, cozy.p.z, cozy.p.y + 0.9); break;
+      case 'fanfare': auSfx('fanfare', 0.8); world.fx('heart', cozy.p.x, cozy.p.y + 1.6, cozy.p.z, 1); czRefresh(); break;
     }
   }
   E.length = 0;
@@ -607,6 +613,11 @@ function cozyAmbient(dt, t) {
   cFireT -= dt;
   if (cFireT > 0) return;
   cFireT = 0.14;
+  const fest = cozy.festOn();
+  if (fest && cozy.hour >= 9 && cozy.hour < 23 && Math.hypot(cozy.p.x - 2, cozy.p.z - 3) < 40 && Math.random() < 0.1) {
+    const a = Math.random() * 6.283, r = 1 + Math.random() * 5, x = 2 + Math.cos(a) * r, z = 3 + Math.sin(a) * r;
+    world.fx(fest.id === 'kis' ? 'spark' : 'heart', x, world.getHeight(x, z) + 1.4 + Math.random() * 2, z, 1);
+  }
   let n = 0;
   for (const [c, o] of cozy.obj) {
     if (o.t !== 'furn') continue;
@@ -629,7 +640,7 @@ function cUpdateLabels() {
     if (cTmpV.z >= 1 || Math.abs(cTmpV.x) > 1.1 || Math.abs(cTmpV.y) > 1.1) { l.style.display = 'none'; continue; }
     l.style.display = '';
     const hearts = Math.min(4, Math.floor(v.friend / 25));
-    const html = (v.quest && !v.quest.done ? '❗ ' : '') + esc(v.name) + (hearts ? ' ' + '💗'.repeat(hearts) : '');
+    const html = (cozy.isBday(v) ? '🎂 ' : '') + (v.quest && !v.quest.done ? '❗ ' : '') + esc(v.name) + (hearts ? ' ' + '💗'.repeat(hearts) : '');
     if (l.dataset.h !== html) { l.innerHTML = html; l.dataset.h = html; }
     l.style.transform = 'translate(' + ((cTmpV.x * 0.5 + 0.5) * W - l.offsetWidth / 2).toFixed(0) + 'px,' + ((-cTmpV.y * 0.5 + 0.5) * H - 22).toFixed(0) + 'px)';
   }
@@ -647,11 +658,13 @@ function cozyFrame(dt, t) {
   }
   world.raining = cozy.rainNow;
   if (!paused) cozyInput(); else cozy.setMove(0, 0, false);
+  cozy.setSeason(CL.season);
   if (!paused) cozy.update(dt, tod * 24);
   if (cozy.consumeSleep()) {
-    tod = 0.27; cozy.newDay(); dayCount = cozy.day; cozy.update(0.01, tod * 24); cozy.say('Günaydın! İyi uyudun mu? 🌞'); czCloseAll();
+    tod = 0.27; cozy.newDay(); dayCount = cozy.day; cozy.update(0.01, tod * 24); cozy.say('Günaydın! İyi uyudun mu? 🌞'); cozy.sleepBonus(); czCloseAll();
   }
   cozyEvents();
+  czFightUI();
   cToastT -= dt;
   if (cToastQ.length && cToastT <= 0) { toast(cToastQ.shift()); cToastT = 1.35; }
   cSyncVillagers(); cUpdateBuildVis();

@@ -234,6 +234,26 @@ body.showfps #fps,body.showfps #czfps{display:inline-block}
 @keyframes cflup{0%{opacity:0;margin-top:0}12%{opacity:1}100%{opacity:0;margin-top:-64px}}
 #czfade{position:fixed;inset:0;background:#05070f;opacity:0;pointer-events:none;transition:opacity .6s;z-index:17}
 #czfade.on{opacity:1;pointer-events:auto}
+#czflash{position:fixed;inset:0;background:#fff;opacity:0;pointer-events:none;z-index:18}
+#czflash.on{opacity:.8}
+#czfight{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(132px + env(safe-area-inset-bottom));width:min(78vw,340px);text-align:center;pointer-events:none!important}
+#czfight .fb{position:relative;height:22px;border-radius:12px;background:rgba(10,14,28,.8);border:2px solid rgba(255,255,255,.4);overflow:hidden}
+#czfight .fz{position:absolute;top:0;bottom:0;border-radius:8px;background:linear-gradient(#8bff9f,#2fbf5c)}
+#czfight .fm{position:absolute;top:-2px;bottom:-2px;width:6px;margin-left:-3px;border-radius:3px;background:#fff;box-shadow:0 0 8px #fff}
+#czfight small{display:inline-block;margin-top:6px;padding:3px 12px;border-radius:10px;background:rgba(10,14,28,.78);font-size:12.5px;font-weight:800;color:#fff}
+#czphoto{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(14px + env(safe-area-inset-bottom));display:flex;gap:8px;flex-wrap:wrap;justify-content:center;width:max-content;max-width:96vw}
+#czphoto[hidden]{display:none}
+.czpb{border:0;border-radius:14px;padding:11px 15px;background:rgba(14,19,38,.82);color:#fff;font-size:14px;font-weight:700;cursor:pointer;backdrop-filter:blur(6px)}
+.czpb.go{background:#ffd27a;color:#3a2a08}
+.czpb:active{transform:scale(.95)}
+body.photo #hud,body.photo #floppy,body.photo #clabels,body.photo #cfloat,body.photo #czhud>*:not(#czphoto){display:none!important}
+.czroom{position:relative;height:150px;border-radius:14px;overflow:hidden;margin:2px 0 8px;background:var(--wall);box-shadow:inset 0 -3px 12px rgba(0,0,0,.12)}
+.czfl{position:absolute;left:0;right:0;bottom:0;height:40%;background:var(--floor);border-top:3px solid rgba(0,0,0,.2)}
+.czwin{position:absolute;left:50%;top:8px;transform:translateX(-50%);font-size:46px;opacity:.9}
+.czslots{position:absolute;left:0;right:0;bottom:8px;display:flex;justify-content:space-around;align-items:flex-end;padding:0 6px}
+.czslot{width:15%;max-width:58px;aspect-ratio:1;border-radius:12px;border:2px dashed rgba(0,0,0,.28);background:rgba(255,255,255,.3);font-size:28px;line-height:1;cursor:pointer;padding:0;color:#3a2a14}
+.czslot.has{border-style:solid;background:rgba(255,255,255,.1)}
+.czslot.on{border-color:#ffb62a;background:rgba(255,210,122,.5);box-shadow:0 0 0 2px rgba(255,182,42,.6)}
 #czm .mbox{width:min(94vw,520px);padding:14px 16px}
 #czm.side{justify-content:flex-end;align-items:stretch;background:transparent;pointer-events:none}
 #czm.side .mbox{pointer-events:auto;margin:12px;max-height:calc(100% - 24px);width:min(92vw,350px)}
@@ -296,14 +316,16 @@ const html = `<!DOCTYPE html>
 </div>
 <div id="czhud">
   <div id="czleft"><div id="czstats" class="glass"></div><div id="czfps"></div></div>
-  <div id="czcam"><button class="rb glass" id="czCamB" data-tip="Kamera|Kamera modunu değiştirir: üçüncü şahıs, birinci şahıs, izometrik.|C">🎥</button><button class="rb glass" id="czRotL" data-tip="Kamerayı sola çevir|Kamerayı karakterin etrafında sola döndürür.|Q">⟲</button><button class="rb glass" id="czRotR" data-tip="Kamerayı sağa çevir|Kamerayı karakterin etrafında sağa döndürür.|R">⟳</button><button class="rb glass" id="czBagB" data-tip="Çanta|Topladığın eşyalar; yiyebilir, eline alabilir, yerleştirebilirsin.|B">🎒</button><button class="rb glass" id="czCatB" data-tip="Rehber|Yakaladığın balık, böcek ve fosillerin kataloğu.|V">📖</button></div>
+  <div id="czcam"><button class="rb glass" id="czCamB" data-tip="Kamera|Kamera modunu değiştirir: üçüncü şahıs, birinci şahıs, izometrik.|C">🎥</button><button class="rb glass" id="czRotL" data-tip="Kamerayı sola çevir|Kamerayı karakterin etrafında sola döndürür.|Q">⟲</button><button class="rb glass" id="czRotR" data-tip="Kamerayı sağa çevir|Kamerayı karakterin etrafında sağa döndürür.|R">⟳</button><button class="rb glass" id="czBagB" data-tip="Çanta|Topladığın eşyalar; yiyebilir, eline alabilir, yerleştirebilirsin.|B">🎒</button><button class="rb glass" id="czCatB" data-tip="Rehber|Yakaladığın balık, böcek ve fosillerin kataloğu.|V">📖</button><button class="rb glass" id="czPhotoB" data-tip="Fotoğraf modu|Arayüzü gizler; filtre ve çerçeve seçip fotoğraf çekersin, PNG olarak indirilir.|G">📷</button></div>
+  <div id="czfight" hidden><div class="fb"><i class="fz"></i><i class="fm"></i></div><small></small></div>
+  <div id="czphoto" hidden><button id="czShot" class="czpb go">📸 Çek</button><button id="czFiltB" class="czpb"></button><button id="czFrameB" class="czpb"></button><button id="czPhotoX" class="czpb">✕</button></div>
   <div id="czprompt"></div>
   <div id="czbar" class="glass"></div>
   <button id="czact" class="glass dim" data-tip="Eylem|Seçili aracınla imlecin gösterdiği işi yapar: konuş, topla, kaz, balık tut…|Boşluk / E">✋</button>
   <div id="czjoy"><i></i></div>
 </div>
 <div id="czm" class="modal" hidden><div class="mbox glass"></div></div>
-<div id="czfade"></div>
+<div id="czfade"></div><div id="czflash"></div>
 <div id="settings" hidden><div id="panel">
   <h3>⚙️ Ayarlar</h3>
   <div class="row">Grafik kalitesi</div>
